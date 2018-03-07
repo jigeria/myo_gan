@@ -1,0 +1,9 @@
+﻿C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\Microsoft.CppBuild.targets(387,5): warning MSB8028: 중간 디렉터리(x64\Debug\)에 다른 프로젝트(hello-myo-VisualStudio2013.vcxproj)에서 공유하는 파일이 포함되어 있습니다.  이로 인해 잘못된 정리 및 다시 빌드 동작이 수행될 수 있습니다.
+  emg-data-sample.cpp
+d:\sang-min\project\myo\myo-sdk-win-0.9.0\myo-sdk-win-0.9.0\include\myo\cxx\impl\../detail/ThrowOnError.hpp(39): warning C4297: 'myo::ThrowOnError::~ThrowOnError': 함수는 예외를 Throw하지 않도록 지정되었으나 예외를 Throw했습니다.
+  d:\sang-min\project\myo\myo-sdk-win-0.9.0\myo-sdk-win-0.9.0\include\myo\cxx\impl\../detail/ThrowOnError.hpp(39): note: 소멸자 또는 비할당자는 가능하면 암시적으로 throw되지 않는 예외 사양을 사용합니다.
+d:\sang-min\project\myo\myo-sdk-win-0.9.0\myo-sdk-win-0.9.0\include\myo\cxx\impl\../detail/ThrowOnError.hpp(45): warning C4297: 'myo::ThrowOnError::~ThrowOnError': 함수는 예외를 Throw하지 않도록 지정되었으나 예외를 Throw했습니다.
+  d:\sang-min\project\myo\myo-sdk-win-0.9.0\myo-sdk-win-0.9.0\include\myo\cxx\impl\../detail/ThrowOnError.hpp(45): note: 소멸자 또는 비할당자는 가능하면 암시적으로 throw되지 않는 예외 사양을 사용합니다.
+  emg-data-sample-VisualStudio2013.vcxproj -> D:\sang-min\Project\myo\myo-sdk-win-0.9.0\myo-sdk-win-0.9.0\samples\x64\Debug\emg-data-sample-VisualStudio2013.exe
+  emg-data-sample-VisualStudio2013.vcxproj -> D:\sang-min\Project\myo\myo-sdk-win-0.9.0\myo-sdk-win-0.9.0\samples\x64\Debug\emg-data-sample-VisualStudio2013.pdb (Partial PDB)
+          1개 파일이 복사되었습니다.
