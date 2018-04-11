@@ -14,13 +14,13 @@ You should modify file path
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-import tensorflow as tf
-import keras
-from keras.models import Sequential
-from keras.layers import Dense
-from keras.layers import LSTM
-from keras.utils import np_utils
-from keras import backend as K
+# import tensorflow as tf
+# import keras
+# from keras.models import Sequential
+# from keras.layers import Dense
+# from keras.layers import LSTM
+# from keras.utils import np_utils
+# from keras import backend as K
 
 
 
@@ -47,10 +47,10 @@ from keras import backend as K
     '''
 
 input_dir = []
-input_dir.append('../../Project/myo/myo-sdk-win-0.9.0/myo-sdk-win-0.9.0/samples/data/accelerometer-.csv')
-input_dir.append('../../Project/myo/myo-sdk-win-0.9.0/myo-sdk-win-0.9.0/samples/data/gyro-.csv')
-input_dir.append('../../Project/myo/myo-sdk-win-0.9.0/myo-sdk-win-0.9.0/samples/data/orientation-.csv')
-input_dir.append('../../Project/myo/myo-sdk-win-0.9.0/myo-sdk-win-0.9.0/samples/data/orientationEuler-.csv')
+input_dir.append('./accelerometer-.csv')
+input_dir.append('./orientationEuler-.csv')
+input_dir.append('./orientation-.csv')
+input_dir.append('./gyro-.csv')
 
 data = []
 
@@ -69,7 +69,7 @@ all_data = all_data.drop([4, 8, 13], axis=1)
 myo_data = np.asarray(all_data, dtype=float)
 # print(myo_data[:, 0].size)
 
-emg = pd.read_csv('../../Project/myo/myo-sdk-win-0.9.0/myo-sdk-win-0.9.0/samples/data/emg-.csv')
+emg = pd.read_csv('./emg-.csv')
 
 emg = emg.values.tolist()
 emg = np.asarray(emg)
@@ -173,7 +173,7 @@ def show_all_data(data):
 def show_data(data):
 
     # data.tofile('data.csv', sep=',', format='%10.5f')
-    np.savetxt('./execl/myo_data.csv', data.astype(float), delimiter=',')
+    np.savetxt('./myo_data.csv', data.astype(float), delimiter=',')
 
     plt.figure(1, figsize=(16, 8))
     plt.plot(data[:, 0], data[:, 1:])
@@ -189,7 +189,7 @@ def show_data(data):
 def read_emg_data(myo_data):
 
     emg_data = myo_data[:, 0:17]
-    np.savetxt('./execl/emg_data.csv', emg_data.astype(float), delimiter=',')
+    np.savetxt('./emg_data.csv', emg_data.astype(float), delimiter=',')
 
     return emg_data
 
@@ -217,7 +217,7 @@ def sampling_data(data):
     print(sampling_data[:, 0].size)
     print(sampling_data[0, :].size)
 
-    np.savetxt('./execl/sampling_emg_data.csv', sampling_data.astype(float), delimiter=',')
+    np.savetxt('./sampling_emg_data.csv', sampling_data.astype(float), delimiter=',')
 
 show_data(myo_data)
 show_all_data(myo_data)
