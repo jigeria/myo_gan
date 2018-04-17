@@ -17,7 +17,9 @@ from keras.activations import relu
 from keras.initializers import RandomNormal
 from keras.datasets import mnist
 from urllib.request import urlretrieve
+
 from read_data import *
+from load_data import DataLoader
 
 conv_init = RandomNormal(0, 0.02)
 gamma_init = RandomNormal(1., 0.02)
@@ -26,18 +28,17 @@ from PIL import Image
 import numpy as np
 import tarfile
 
-def make_lstm(myo_data, time, per_second, data_counter):
+def make_lstm(myo_data, nz):
 
     input = Input(shape=(1, 1))
     noisev = Input(shape=(20,))
-    #size = emg_data[:, 0].size
 
-    _ = LSTM(80, input_shape=(myo_data[data_counter : data_counter + (per_second * time), 1:].size, 16))
+    _ = LSTM(nz, input_shape=(myo_data[:, 1:].size, 16))
     _ = (_)(input)
 
-    lstm_layer = Concatenate(axis=1)([_, noisev])
+    #lstm_layer = Concatenate(axis=1)([_, noisev])
 
-    return lstm_layer
+    return _
 
 def DCGAN_D(isize, nz, nc, ndf, n_extra_layers=0):
     assert isize % 2 == 0
@@ -79,7 +80,7 @@ def DCGAN_G(isize, nz, nc, ngf, n_extra_layers=0):
         cngf = cngf * 2
         assert tisize % 2 == 0
         tisize = tisize // 2
-    _ = inputs = Input(shape=(nz,))
+    _ = inputs = Input(shape=(nz, ))
     _ = Reshape((nz, 1, 1))(_)
     _ = Conv2DTranspose(filters=cngf, kernel_size=tisize, strides=1, use_bias=False,
                         kernel_initializer=conv_init,
@@ -109,24 +110,22 @@ def DCGAN_G(isize, nz, nc, ngf, n_extra_layers=0):
     outputs = Activation("tanh", name='final.{0}.tanh'.format(nc))(_)
     return Model(inputs=inputs, outputs=outputs)
 
+loader = DataLoader(emg_data_path='./Sample_data/time_match.csv', image_path='./Sample_data/hand_images/')
+
 data_counter = 0
 nc = 3
-nz = 100 # noise z random vector
+nz = 1598# noise z random vector
 ngf = 64
 ndf = 64
 n_extra_layers = 0
 Diters = 5
 Lambda = 10
-data_time = 10 # myo data time
-time = 3 # 3 second
 
 imageSize = 128 # image size
-batchSize = 64
+batchSize = loader.num_images
+
 lrD = 1e-4 # learning rate
 lrG = 1e-4 # learning rate
-
-emg_data = read_emg_data(myo_data)
-per_second = emg_data[:, 0].size / time
 
 netD = DCGAN_D(imageSize, nz, nc, ndf, n_extra_layers)
 netD.summary()
@@ -137,10 +136,13 @@ netG.summary()
 from keras.optimizers import RMSprop, SGD, Adam
 
 netD_real_input = Input(shape=(nc, imageSize, imageSize))
+emg_data = loader.get_emg_datas(1)
+lstm_layer = make_lstm(emg_data, nz)
 
-lstm_layer = make_lstm(emg_data, time, per_second)
+#lstm_layer = make_lstm(emg_data, time, per_second)
+#lstm_layer = Input(shape=(nz,))
 netD_fake_input = netG(lstm_layer)
-#    data_counter += (int)(per_second * time)
+#   data_counter += (int)(per_second * time)
 
 Epsilon_input = K.placeholder(shape=(None, nc, imageSize, imageSize))
 netD_mixed_input = Input(shape=(nc, imageSize, imageSize), tensor=netD_real_input + Epsilon_input)
@@ -154,18 +156,10 @@ grad_penalty = K.mean(K.square(norm_grad_mixed - 1))
 
 loss = loss_fake - loss_real + Lambda * grad_penalty
 
-def load_data(file_pattern):
-    return glob.glob(file_pattern)
+imgae, data = loader.get_next_batch(batchSize)
 
-
-def read_image(fn, direction=0):
-    im = Image.open(fn)
-    arr = np.array(im) / 255.0 * 2 - 1
-
-
-train_dir = load_data('.././cards_ab/cards_ab/train/*.jpg')
-train_X = []
-
+train_X = imgae
+print('imgae shape', train_X.shape)
 training_updates = Adam(lr=lrD).get_updates(netD.trainable_weights, [], loss)
 netD_train = K.function([netD_real_input, lstm_layer, Epsilon_input],
                         [loss_real, loss_fake],
@@ -176,11 +170,14 @@ training_updates = Adam(lr=lrG).get_updates(netG.trainable_weights, [], loss)
 netG_train = K.function([lstm_layer], [loss], training_updates)
 
 #train_X = np.concatenate([train_X, test_X])
-train_X = np.concatenate([train_X[:, :, :, ::-1], train_X])
+#train_X = np.concatenate([train_X[:, :, :, ::-1], train_X])
 
 fixed_noise = np.random.normal(size=(batchSize, nz)).astype('float32')
 
 import time
+
+count_1 = 0
+count_2 = 0
 
 t0 = time.time()
 niter = 100
@@ -188,33 +185,135 @@ gen_iterations = 0
 errG = 0
 targetD = np.float32([2] * batchSize + [-2] * batchSize)[:, None]
 targetG = np.ones(batchSize, dtype=np.float32)[:, None]
+
 for epoch in range(niter):
     i = 0
+    #print(count_1)
+    #print(count_2)
+    count_1 = 0
+    count_2 = 0
+    #np.random.shuffle(train_X)
+    batches = train_X.shape[0] # batchSize
+    #batches = 21
+    print(batches)
+    #print(batchSize)
 
-    np.random.shuffle(train_X)
-    batches = train_X.shape[0] // batchSize
     while i < batches:
+        print('i x batchsize :', i * batchSize, (i + 1) * batchSize, len(train_X))
+        real_data = train_X[i * batchSize:(i + 1) * batchSize]  # i가 1 이상이 되는 순간 인덱스를 넘어버림
+        # real_data = train_X[i : i+1]
+        # i += 1    # 여기서 i가 올라감
+        # lstm_noise_layer =
+        emg_data = loader.get_emg_datas(1)
+
+        emg_data = emg_data.reshape(emg_data[0, :, 0].size, emg_data[0, 0, :].size)
+        # print(emg_data[:, 0].size)
+        # print(emg_data[0, :].size)
+        size = emg_data[:, 0].size / 3
+        size = int(size)
+        # print(size)
+        count = 0
+        data = []
+
+        for i in range(3):
+            data_1 = emg_data[count: count + size, :]
+            data_1 = data_1.flatten()
+            # print(data_1.shape)
+            data.append(data_1)
+
+        # emg_data = emg_data.flatten()
+        data = np.asarray(data)
+        # print(data.shape)
+        emg_data = data
+        print(emg_data.shape)
+
+        count_2 += 1
+        Epsilon = real_data.std() * np.random.uniform(-0.5, 0.5, size=real_data.shape)
+        print(real_data.shape)
+        # print(np.random.uniform(size=(batchSize, 1, 1, 1)).shape)
+        Epsilon *= np.random.uniform(size=(batchSize, 1, 1, 1))
+        errD_real, errD_fake = netD_train([real_data, emg_data, Epsilon])
+        errD = errD_real - errD_fake
+
+        if gen_iterations % 10 == 0:
+            # if gen_iterations % 500 == 0:
+            print('[%d/%d][%d/%d][%d] Loss_D: %f Loss_G: %f Loss_D_real: %f Loss_D_fake %f'
+                  % (epoch, niter, i, batches, gen_iterations, errD, errG, errD_real, errD_fake), time.time() - t0)
+            fake = netG.predict(fixed_noise)
+            # showX(fake, 4)
+
+        # noise = np.random.normal(size=(batchSize, nz))
+        emg_datas = loader.get_emg_datas(3)
+        errG, = netG_train([emg_data])
+        gen_iterations += 1
+
+'''
+    while i < batches:
+        count_1 += 1
         if gen_iterations < 25 or gen_iterations % 500 == 0:
-            _Diters = 100
+            _Diters = 10 # 100
         else:
             _Diters = Diters
         j = 0
+        print(j, '/', _Diters)
         while j < _Diters and i < batches:
+            print(j, '/', _Diters)
             j += 1
-            real_data = train_X[i * batchSize:(i + 1) * batchSize]
-            i += 1
-            noise = np.random.normal(size=(batchSize, nz))
+            i = 0       # 인덱스 넘는 걸 방지하기 위해서 매 Iteration마다 0으로 초가화
+            print('i x batchsize :', i * batchSize, (i+1) * batchSize, len(train_X))
+            real_data = train_X[i * batchSize:(i + 1) * batchSize]      # i가 1 이상이 되는 순간 인덱스를 넘어버림
+            # real_data = train_X[i : i+1]
+            # i += 1    # 여기서 i가 올라감
+            #lstm_noise_layer =
+            emg_data = loader.get_emg_datas(1)
+
+            emg_data = emg_data.reshape(emg_data[0, :, 0].size, emg_data[0, 0, :].size)
+            #print(emg_data[:, 0].size)
+            #print(emg_data[0, :].size)
+            size = emg_data[:, 0].size / 3
+            size = int(size)
+            #print(size)
+            count = 0
+            data = []
+
+            for i in range(3):
+                data_1 = emg_data[count : count + size, :]
+                data_1 = data_1.flatten()
+                #print(data_1.shape)
+                data.append(data_1)
+
+            #emg_data = emg_data.flatten()
+            data = np.asarray(data)
+            #print(data.shape)
+            emg_data = data
+            #print(emg_data.shape)
+
+
+            #h_size = 200 - emg_datas[:, 0].size
+            #w_size = 100 - emg_datas[0, :].size
+            #noise = np.random.normal(size=(100, 200))
+            #print(noise.shape)
+            #lstm_noise_layer = make_lstm(emg_datas)
+
+            count_2 += 1
             Epsilon = real_data.std() * np.random.uniform(-0.5, 0.5, size=real_data.shape)
+            print(real_data.shape)
+            # print(np.random.uniform(size=(batchSize, 1, 1, 1)).shape)
             Epsilon *= np.random.uniform(size=(batchSize, 1, 1, 1))
-            errD_real, errD_fake = netD_train([real_data, noise, Epsilon])
+            errD_real, errD_fake = netD_train([real_data, emg_data , Epsilon])
             errD = errD_real - errD_fake
 
-        if gen_iterations % 500 == 0:
+        i += 1      # 테스트
+
+        if gen_iterations % 10 == 0:
+        # if gen_iterations % 500 == 0:
             print('[%d/%d][%d/%d][%d] Loss_D: %f Loss_G: %f Loss_D_real: %f Loss_D_fake %f'
                   % (epoch, niter, i, batches, gen_iterations, errD, errG, errD_real, errD_fake), time.time() - t0)
             fake = netG.predict(fixed_noise)
             #showX(fake, 4)
 
-        noise = np.random.normal(size=(batchSize, nz))
-        errG, = netG_train([noise])
+        #noise = np.random.normal(size=(batchSize, nz))
+        emg_datas = loader.get_emg_datas(3)
+        errG, = netG_train([emg_data])
         gen_iterations += 1
+'''
