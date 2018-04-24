@@ -12,4 +12,8 @@
 ## Contact me
 - Name : Park sang-min
 - email : jigeria@naver.com / jigeria114@gmail.com
-  
+
+### Memo
+MYO 데이터를 수집하기 위해서 다음과 같은 작업이 필요합니다.
+1. [이 링크](https://s3.amazonaws.com/thalmicdownloads/windows/SDK/myo-sdk-win-0.9.0.zip)를 눌러 MYO SDK를 다운받고 압축을 해제합니다.
+2. source/emg_data_sample.cpp 파일을 SDK 폴더 하위의 samples/ 디렉토리에 덮어씌웁니다.
