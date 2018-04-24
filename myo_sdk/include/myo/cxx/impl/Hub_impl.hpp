@@ -97,6 +97,7 @@ void Hub::setLockingPolicy(LockingPolicy lockingPolicy)
 inline
 void Hub::onDeviceEvent(libmyo_event_t event)
 {
+    static int event_counter = 0;
     libmyo_myo_t opaqueMyo = libmyo_event_get_myo(event);
 
     Myo* myo = lookupMyo(opaqueMyo);
