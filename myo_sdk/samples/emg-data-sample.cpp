@@ -14,16 +14,31 @@
 #include <string>
 #include <fstream>
 #include <time.h>
+#include <Windows.h>
+#include <ctime>
+#include <thread>
 
 #include <myo/myo.hpp>
 
+#define SAVE_SECONDS 20
+#define SECONDS_TO_IGNORE 5
+#define DURATION_MS 1000
+
 class DataCollector : public myo::DeviceListener {
 public:
+	int second;
+	bool emg_receive_ended;
+	bool isSaveThreadWork;
+	int emg_data[200][8];
+	int emg_count = 0;
+
 	DataCollector()
 	{
 		openFiles();
+		emg_receive_ended = false;
+		isSaveThreadWork = true;
+		second = 0;
 	}
-
 
 	void openFiles() {
 		time_t timestamp = std::time(0);
@@ -79,13 +94,42 @@ public:
 	// onEmgData() is called whenever a paired Myo has provided new EMG data, and EMG streaming is enabled.
 	void onEmgData(myo::Myo* myo, uint64_t timestamp, const int8_t* emg)
 	{
-
-		emgFile << timestamp;
-		for (size_t i = 0; i < 8; i++) {
-			emgFile << ',' << static_cast<int>(emg[i]);
-
+		for (size_t i = 0; i < 8 && emg_count < 200; i++) {
+			emg_data[emg_count][i] = static_cast<int>(emg[i]);
 		}
-		emgFile << std::endl;
+
+		emg_count++;
+	}
+	
+	void saveEmgData() {
+		int emg_data_index;
+
+		while (isSaveThreadWork) {
+			if (emg_receive_ended) {
+				emg_receive_ended = false;
+				emg_data_index = emg_count - 2;
+
+				// 200개가 안될 경우 처리 : 2개의 row를 반복 복사
+				if (emg_count < 199) {
+					for (int r = emg_count; r < 200; r += 2) {
+						for (int c = 0; c < 8; c++) {
+							emg_data[r][c] = emg_data[emg_data_index][c];
+							emg_data[r + 1][c] = emg_data[emg_data_index + 1][c];
+						}
+					}
+				}
+
+				for (int r = 0; r < 200; r++) {
+					emgFile << second;
+					for (int c = 0; c < 8; c++) {
+						emgFile << ',' << emg_data[r][c];
+					}
+					emgFile << std::endl;
+				}
+
+				emg_count = 0;
+			}
+		}
 	}
 
 	// onOrientationData is called whenever new orientation data is provided
@@ -149,8 +193,6 @@ public:
 			<< std::endl;
 	}
 
-
-
 	// The files we are logging to
 	std::ofstream emgFile;
 	std::ofstream gyroFile;
@@ -162,7 +204,11 @@ public:
 
 int main(int argc, char** argv)
 {
+	std::clock_t start;
+	double duration;
 	time_t time_value = 0;
+	int counter = 0;
+	DataCollector collector;
 
 	// We catch any exceptions that might occur below -- see the catch statement for more details.
 	try {
@@ -177,42 +223,63 @@ int main(int argc, char** argv)
 		// immediately.
 		// waitForMyo() takes a timeout value in milliseconds. In this case we will try to find a Myo for 10 seconds, and
 		// if that fails, the function will return a null pointer.
-		myo::Myo* myo = hub.waitForMyo(10000);
+		myo::Myo* myo = hub.waitForMyo(1000);
 
 		// If waitForMyo() returned a null pointer, we failed to find a Myo, so exit with an error message.
 		if (!myo) {
 			throw std::runtime_error("Unable to find a Myo!");
 		}
 
-		// We've found a Myo.
+		// We've found a Myo. 
 		std::cout << "Connected to a Myo armband! Logging to the file system. Check your home folder or the folder this application lives in." << std::endl << std::endl;
 
 		// Next we enable EMG streaming on the found Myo.
+		start = std::clock();
 		myo->setStreamEmg(myo::Myo::streamEmgEnabled);
 
 		// Next we construct an instance of our DeviceListener, so that we can register it with the Hub.
-		DataCollector collector;
 
 		// Hub::addListener() takes the address of any object whose class inherits from DeviceListener, and will cause
 		// Hub::run() to send events to all registered device listeners.
 		hub.addListener(&collector);
 
-		//getchar();
-		printf("a\n");
+		// CSV file saving thread
+		std::thread saverThread(&DataCollector::saveEmgData, &collector);
+
 		time_value = time(NULL);
-		std::cout << time_value << std::endl;
-		//time_value = time(NULL);
+		
+		for (int i = 0; i < SECONDS_TO_IGNORE; i++) {
+			start = std::clock();
+			hub.run( DURATION_MS );
+			std::cout << "Timer : " << (std::clock() - start) << "\n";
+			collector.emg_count = 0;
+		}
+
+		time_value += SECONDS_TO_IGNORE;
+
+		std::cout << "Data will be captured" << "\n";
 
 		// Finally we enter our main loop.
 		while (1) {
-			
 			// In each iteration of our main loop, we run the Myo event loop for a set number of milliseconds.
 			// In this case, we wish to update our display 50 times a second, so we run for 1000/20 milliseconds.
-			hub.run(1);
+			start = std::clock();
+			hub.run( DURATION_MS );
 
-			if (time(NULL) == time_value + 10)
+			// Receive complete - Flag on
+			std::cout << "Timer : " << (std::clock() - start) << "\n";
+			collector.emg_receive_ended = true;
+			collector.second++;
+
+			if (time(NULL) == time_value + SAVE_SECONDS) {
+				collector.isSaveThreadWork = false;		// Escape thread internal loop
+				saverThread.join();						// Kill thread
 				return 0;
+			}
 		}
+
+		collector.isSaveThreadWork = false;
+		saverThread.join();
 
 		// If a standard exception occurred, we print out its message and exit.
 	}
