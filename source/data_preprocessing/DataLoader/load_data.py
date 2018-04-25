@@ -47,6 +47,13 @@ class DataLoader:
 
         return np.array(images)
 
+    def get_next_second_emgs(self):
+        emgs = []
+        for i in range(3):
+            emgs.append(self.load_emg_data())
+
+        return np.reshape(np.array(emgs), (1, 300, 16))
+
 # Example
 
 '''
@@ -54,13 +61,11 @@ loader = DataLoader(emg_data_path='./Sample_data/emg.csv', image_path='./Sample_
 print('Total image number :', loader.total_image_number, 'Total EMG seconds :', loader.total_emg_seconds)
 
 # Get next EMG datas or Images
-test_emg = loader.get_next_emgs(1)
+test_emg = loader.get_next_second_emgs()
 test_image = loader.get_next_images(1)
 
 print(type(test_emg), test_emg.shape)
 print(type(test_image), test_image.shape)
-print(test_emg[0][0])
-
-test_emg = loader.get_next_emgs(1)
+test_emg = loader.get_next_second_emgs()
 print(test_emg[0][0])
 '''

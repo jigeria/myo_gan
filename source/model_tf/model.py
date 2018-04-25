@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import tensorflow.contrib.layers as tflayers
+import tensorflow.contrib.rnn as rnn
 import numpy as np
 
 def leaky_relu(input, slope=0.2):
@@ -31,13 +32,26 @@ Discriminator
 
 '''
 
+# emg : (1, 300, 16)
+
 class Model:
-    def __init__(self, mode='train', learning_rate=0.0002):
+    def __init__(self, mode='train', batch_size=1, learning_rate=0.0002):
         self.mode = mode
         self.learning_rate = learning_rate
+        self.batch_size = batch_size
 
-    def generator(self, z, c, reuse=False):
-        input = tf.concat([z, c], 1)
+    def generator(self, emg_data, reuse=False):
+        # input = tf.concat([z, c], 1)
+
+        # LSTM
+        cell = rnn.BasicLSTMCell(num_units=256, state_is_tuple=True)
+        initial_state = cell.zero_state(self.batch_size, tf.float32)
+        outputs, _states = tf.nn.dynamic_rnn(cell, emg_data, initial_state=initial_state, dtype=np.float32)
+
+        input = tf.reshape(outputs, [-1, 256])
+        input = tflayers.fully_connected(inputs=input, num_outputs=100, activation_fn=None)
+
+        # Generator
         net = slim.fully_connected(input, 256, activation_fn=tf.nn.relu,
                                       weights_initializer=tflayers.xavier_initializer(),
                                       biases_initializer=tflayers.xavier_initializer(),
