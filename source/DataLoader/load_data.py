@@ -10,11 +10,10 @@ class DataLoader:
         self.image_path = image_path
 
         self.emg_data = np.array(pd.read_csv(self.emg_data_path, sep=',').values.tolist())
+        self.total_emg_seconds = self.emg_data[-1][0]
 
         for dirname, dirnames, filenames in os.walk(self.image_path):
             self.total_image_number = len(filenames)
-
-        self.total_emg_seconds = self.emg_data[-1][0]
 
         self.image_index = 0
         self.emg_data_index = 0
@@ -22,6 +21,7 @@ class DataLoader:
     def load_emg_data(self):
         index = self.emg_data_index % self.total_emg_seconds
         emg_data = self.emg_data[index*200 : index*200+200, 1:]
+        emg_data = np.reshape(emg_data, (100, 16))
         emg_data = np.asarray(emg_data, dtype=np.float32)
         self.emg_data_index += 1
         return emg_data
@@ -49,7 +49,6 @@ class DataLoader:
 
 # Example
 
-'''
 loader = DataLoader(emg_data_path='./Sample_data/emg.csv', image_path='./Sample_data/hand_images/')
 print('Total image number :', loader.total_image_number, 'Total EMG seconds :', loader.total_emg_seconds)
 
@@ -59,4 +58,7 @@ test_image = loader.get_next_images(1)
 
 print(type(test_emg), test_emg.shape)
 print(type(test_image), test_image.shape)
-'''
+print(test_emg[0][0])
+
+test_emg = loader.get_next_emgs(1)
+print(test_emg[0][0])
