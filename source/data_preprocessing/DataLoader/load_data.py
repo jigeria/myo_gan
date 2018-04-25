@@ -49,6 +49,7 @@ class DataLoader:
 
 # Example
 
+'''
 loader = DataLoader(emg_data_path='./Sample_data/emg.csv', image_path='./Sample_data/hand_images/')
 print('Total image number :', loader.total_image_number, 'Total EMG seconds :', loader.total_emg_seconds)
 
@@ -62,3 +63,4 @@ print(test_emg[0][0])
 
 test_emg = loader.get_next_emgs(1)
 print(test_emg[0][0])
+'''
