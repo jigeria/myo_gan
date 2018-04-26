@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import sklearn as sk
 import cv2
 
 import os
@@ -9,51 +10,63 @@ class DataLoader:
         self.emg_data_path = emg_data_path
         self.image_path = image_path
 
-        self.emg_data = np.loadtxt(self.emg_data_path, delimiter=',')
+        self.emg_data = np.array(pd.read_csv(self.emg_data_path, sep=',').values.tolist())
+        self.total_emg_seconds = self.emg_data[-1][0]
 
         for dirname, dirnames, filenames in os.walk(self.image_path):
-            self.num_images = len(filenames)
+            self.total_image_number = len(filenames)
 
-        self.data_batch_size = int(len(self.emg_data) / self.num_images)
-        # self.data_index = 0
         self.image_index = 0
         self.emg_data_index = 0
 
-    def get_images(self, num):
+    def load_emg_data(self):
+        index = self.emg_data_index % self.total_emg_seconds
+        emg_data = self.emg_data[index*200 : index*200+200, 1:]
+        emg_data = np.reshape(emg_data, (100, 16))
+        emg_data = np.asarray(emg_data, dtype=np.float32)
+        self.emg_data_index += 1
+        return emg_data
+
+    def load_image(self):
+        index = self.image_index % self.total_image_number
+        filename = self.image_path + 'hand' + str(index) + '.png'
+        image = np.reshape(cv2.imread(filename, cv2.IMREAD_GRAYSCALE), (128, 128, 1))
+        self.image_index += 1
+        return image
+
+    def get_next_emgs(self, num):
+        emgs = []
+        for i in range(num):
+            emgs.append(self.load_emg_data())
+
+        return np.array(emgs)
+
+    def get_next_images(self, num):
         images = []
-        for i in range(self.image_index, self.image_index + num):
-            # print(i%self.num_images)
-            tmp = cv2.imread(self.image_path + 'hand' + str(i%self.num_images) + '.png', cv2.IMREAD_GRAYSCALE)
-            images.append(np.reshape(tmp, (128, 128, 1)))
-            # images.append(cv2.imread(self.image_path + 'hand' + str(i%self.num_images) + '.png'))
+        for i in range(num):
+            images.append(self.load_image())
 
-        return np.asarray(images)
+        return np.array(images)
 
-    def get_emg_datas(self, num):
-        emg_datas = []
-        for i in range(self.emg_data_index, self.emg_data_index + num):
-            emg_datas.append(self.emg_data[(i%self.num_images) * self.data_batch_size : (i%self.num_images) * self.data_batch_size + self.data_batch_size])
+    def get_next_second_emgs(self, sec):
+        emgs = []
+        for i in range(3*sec):
+            emgs.append(self.load_emg_data())
 
-        return np.asarray(emg_datas)
-
-    def get_next_batch(self, num):
-        # print('Current batch :', self.data_index)
-        images = self.get_images(num)
-        emg_datas = self.get_emg_datas(num)
-        self.emg_data_index = (self.emg_data_index + num) % self.num_images
-        self.image_index = (self.image_index + num) % self.num_images
-
-        return images, emg_datas
-
-    def print_info(self):
-        print(self.emg_data.shape)
-        print(self.num_images)
-        print(self.data_batch_size)
-
+        return np.reshape(np.array(emgs), (sec, 300, 16))
 
 # Example
+
 '''
-loader = DataLoader(emg_data_path='./Sample_data/time_match.csv', image_path='./Sample_data/hand_images/')
-image, data = loader.get_next_batch(5)
-image, data = loader.get_next_batch(5)
+loader = DataLoader(emg_data_path='./Sample_data/emg.csv', image_path='./Sample_data/hand_images/')
+print('Total image number :', loader.total_image_number, 'Total EMG seconds :', loader.total_emg_seconds)
+
+# Get next EMG datas or Images
+test_emg = loader.get_next_second_emgs()
+test_image = loader.get_next_images(1)
+
+print(type(test_emg), test_emg.shape)
+print(type(test_image), test_image.shape)
+test_emg = loader.get_next_second_emgs()
+print(test_emg[0][0])
 '''

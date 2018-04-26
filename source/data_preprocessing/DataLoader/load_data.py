@@ -47,12 +47,12 @@ class DataLoader:
 
         return np.array(images)
 
-    def get_next_second_emgs(self):
+    def get_next_second_emgs(self, sec=1):
         emgs = []
-        for i in range(3):
+        for i in range(3*sec):
             emgs.append(self.load_emg_data())
 
-        return np.reshape(np.array(emgs), (1, 300, 16))
+        return np.reshape(np.array(emgs), (sec, 300, 16))
 
 # Example
 
