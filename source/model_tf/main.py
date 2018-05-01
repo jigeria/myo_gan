@@ -7,7 +7,19 @@ import cv2
 from load_data import DataLoader
 from model import Model
 
-loader = DataLoader(emg_data_path='./Sample_data/emg.csv', image_path='./Sample_data/hand_images/')
+loader = DataLoader(data_path='../data_preprocessing/DataLoader/MYO_Dataset_label')
+
+'''
+emg = loader.load_emg_data()
+image, label = loader.load_image()
+
+print(emg.shape)
+print(image.shape, label)
+
+emg = loader.get_emg_datas(10)
+images, labels = loader.get_images(10)
+print(emg.shape, images.shape, labels.shape)
+'''
 
 # images, emgs = loader.get_next_batch(3)
 #
@@ -27,14 +39,16 @@ sess.run(tf.global_variables_initializer())
 # print('EMGs shape :', emgs.shape)
 # print('Z vector shape :', z.shape)
 
-emgs = loader.get_next_second_emgs(batch_size)
-images = loader.get_next_images(batch_size)
-images = images/127.5
+# emgs = loader.get_next_second_emgs(batch_size)
+# images = loader.get_next_images(batch_size)
+# images = images/127.5
 
 for i in range(10000):
     print('Iteration ', i)
-    emgs = loader.get_next_second_emgs(batch_size)
-    images = loader.get_next_images(batch_size)
+    emgs = loader.get_emg_datas(batch_size)
+    images, labels = loader.get_images(batch_size)
+
+    images = images / 127.5
 
     for i in range(len(emgs)):
         emgs[i] = normalize(emgs[i])
