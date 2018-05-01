@@ -12,7 +12,7 @@ import os
 class DataLoader:
     def __init__(self, data_path='./MYO_Dataset_label/'):
         if data_path[-1] is not '/':
-            data_path.append('/')
+            data_path = data_path + '/'
         self.data_path = data_path
 
         self.emg_file_index = 1
@@ -80,8 +80,6 @@ class DataLoader:
                 return : (128, 128, 1)
         '''
 
-        print(self.image_dir_index, self.image_index, end='   ')
-
         image_name = 'hand' + str(self.image_index)
         image_index = self.image_file_names.index(image_name)
         label = self.image_file_labels[image_index]
@@ -97,15 +95,39 @@ class DataLoader:
 
         return image, label
 
+    def get_emg_datas(self, num):
+        emg_data = []
+
+        for i in range(num):
+            emg_data.append(self.load_emg_data())
+
+        return np.array(emg_data)
+
+    def get_images(self, num):
+        images = []
+        labels = []
+
+        for i in range(num):
+            image, label = self.load_image()
+            images.append(image)
+            labels.append(label)
+
+        return np.array(images), np.array(labels)
+
+
 
 '''
 
-loader = DataLoader(data_path='./MYO_Dataset_label')
+loader = DataLoader(data_path='./MYO_Dataset_label/')
 
 emg = loader.load_emg_data()
-image, label = loader.load_image
+image, label = loader.load_image()
 
 print(emg.shape)
 print(image.shape, label)
+
+emg = loader.get_emg_datas(10)
+images, labels = loader.get_images(10)
+print(emg.shape, images.shape, labels.shape)
 
 '''
