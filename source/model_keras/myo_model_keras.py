@@ -61,7 +61,8 @@ learning_rate = 2e-4
 
 lstm_input = Input(shape=(lstm_size))
 noise_input = Input(shape=(noise_size,))
-image_input = Input(shape=(image_size, image_size, image_channel))
+image = Input(shape=(image_size, image_size, image_channel))
+real_image = image
 
 lstm_model = Sequential([
     LSTM(80, input_shape=(lstm_size)),
@@ -109,7 +110,7 @@ generative_model.summary()
 g_model_input = Concatenate(axis=-1)([lstm_output, noise_input])
 g_model_output = generative_model(g_model_input)
 
-combined_model = Model(inputs=[lstm_input, noise_input], outputs=[g_model_output])
+combined_g_model = Model(inputs=[lstm_input, noise_input], outputs=[g_model_output])
 
 
 discriminative_model = Sequential([
@@ -137,10 +138,19 @@ discriminative_model = Sequential([
     Conv2D(filters=1, kernel_size=(2, 2), strides=1, padding='same', input_shape=(4, 4, 128), kernel_initializer=conv_init),
     #_ = LeakyReLU(alpha=0.2)(_)
 
-    Flatten()
+    Flatten(),
+    Activation(activation='sigmoid')
+
 ])
 discriminative_model.summary()
 
-d_model_output = discriminative_model(image_input)
+d_model_fake_output = discriminative_model(real_image)
+d_model_real_output = discriminative_model(g_model_output)
 
-d_model = Model(inputs=image_input, outputs=d_model_output)
+d_model = Model(inputs=real_image, outputs=d_model_fake_output)
+
+print(d_model_fake_output)
+print(d_model_real_output)
+
+loss_fn = lambda output, target: -K.mean(K.log(output + 1e-12) * target + K.log(1 - output + 1e-12) * (1 - target))
+
