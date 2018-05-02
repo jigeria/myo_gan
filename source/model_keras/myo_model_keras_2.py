@@ -47,7 +47,7 @@ Discriminator
 64 -> 32 (16, 10)
 
 '''
-loader = DataLoader(emg_data_path='../data_preprocessing/DataLoader/Sample_data/emg.csv', image_path='../data_preprocessing/DataLoader/Sample_data/hand_images/')
+loader = DataLoader(data_path='./MYO_Dataset_label/')
 
 conv_init = RandomNormal(0, 0.02)
 gamma_init = RandomNormal(1., 0.02)
@@ -150,22 +150,17 @@ training_updates = Adam(lr=learning_rate, beta_1=0.5).get_updates(net_g.trainabl
 net_g_train = K.function([lstm_input, noise_input], [loss_g], training_updates)
 
 '''
-myo_data = loader.get_emg_datas(1)
-myo_data = myo_data.reshape(myo_data[0, :, 0].size, myo_data[0, 0, :].size)
+loader = DataLoader(data_path='./MYO_Dataset_label/')
 
-print("myo data : ", myo_data)
-print("myo data size : ", myo_data[:, 0].size, myo_data[0, :].size)
+emg = loader.load_emg_data()
+image, label = loader.load_image()
 
+print(emg.shape)
+print(image.shape, label)
 
-loader = DataLoader(emg_data_path='./Sample_data/emg.csv', image_path='./Sample_data/hand_images/')
-print('Total image number :', loader.total_image_number, 'Total EMG seconds :', loader.total_emg_seconds)
-
-# Get next EMG datas or Images
-test_emg = loader.get_next_emgs(1)
-test_image = loader.get_next_images(1)
-
-print(type(test_emg), test_emg.shape)
-print(type(test_image), test_image.shape)
+emg = loader.get_emg_datas(10)
+images, labels = loader.get_images(10)
+print(emg.shape, images.shape, labels.shape)
 
 '''
 
@@ -175,10 +170,7 @@ time_0 = time.time()
 err_d = err_g = 0
 err_d_sum = 0
 err_g_sum = 0
-batch_size = loader.total_image_number
-
-print(batch_size)
-print('Total image number :', loader.total_image_number, 'Total EMG seconds :', loader.total_emg_seconds)
+batch_size = 24
 
 while i < epoch:
     j = 0
@@ -186,8 +178,8 @@ while i < epoch:
     noise = np.random.normal(size=(batch_size, noise_size))
     print("noise size : ", noise.shape)
 
-    train_image = loader.get_next_images(batch_size)
-    train_data = loader.get_next_second_emgs(batch_size)
+    train_image, _ = loader.get_images(batch_size)
+    train_data = loader.get_emg_datas(batch_size)
 
     print("data shape : ", train_data.shape)
     print("image shape : ", train_image.shape)
