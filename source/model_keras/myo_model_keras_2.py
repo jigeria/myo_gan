@@ -6,6 +6,7 @@ os.environ['KERAS_BACKEND'] = 'tensorflow'  # 也可以使用 tensorflow
 os.environ['THEANO_FLAGS'] = 'floatX=float32,device=cuda,optimizer=fast_compile'
 #os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
+import tensorflow
 import keras.backend as K
 
 K.set_image_data_format('channels_last')
@@ -24,6 +25,8 @@ import numpy as np
 
 #from read_data import *
 from load_data import DataLoader
+
+print(tensorflow.__version__)
 
 '''
 Model structure
@@ -47,13 +50,14 @@ Discriminator
 64 -> 32 (16, 10)
 
 '''
-loader = DataLoader(data_path='./MYO_Dataset_label/')
+loader = DataLoader(data_path='../data_preprocessing/DataLoader/MYO_Dataset_label')
 
 conv_init = RandomNormal(0, 0.02)
 gamma_init = RandomNormal(1., 0.02)
 
 def generative_model(noise_size):
 
+    print('Generator start')
     lstm_layer = LSTM(80, input_shape=lstm_size)(lstm_input)
     _ = Concatenate(axis=-1)([lstm_layer, noise_input])
     print(" _ : ", _)
@@ -61,24 +65,36 @@ def generative_model(noise_size):
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Reshape((16, 16, 1), input_shape=(256, ))(_)
 
+    print('Dense end')
+
     _ = Conv2D(filters=128, kernel_size=(2, 2), padding='same', kernel_initializer=conv_init, input_shape=(16, 16, 1))(_)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
+
+    print('Conv2D end')
 
     _ = Conv2DTranspose(filters=256, kernel_size=(2, 2), strides=2, kernel_initializer=conv_init, input_shape=(16, 16, 128))(_)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
 
+    print('Conv2D_T end')
+
     _ = Conv2DTranspose(filters=512, kernel_size=(2, 2), strides=2, kernel_initializer=conv_init, input_shape=(32, 32, 256))(_)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
+
+    print('Conv2D_T end')
 
     _ = Conv2DTranspose(filters=256, kernel_size=(2, 2), strides=2, kernel_initializer=conv_init, input_shape=(64, 64, 512))(_)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
 
+    print('Conv2D_T end')
+
     _ = Conv2D(filters=1, kernel_size=(128, 128), padding='same', kernel_initializer=conv_init, input_shape=(128, 128, 256))(_)
     _ = Activation(activation='relu')(_)
+
+    print('Conv2D end')
 
     return Model(inputs=[lstm_input, noise_input], outputs=_)
 
@@ -89,28 +105,42 @@ def discriminative_model(image_size, image_channel):
     _ = Conv2D(filters=256, kernel_size=(2, 2), strides=2, padding='same', input_shape=(128, 128, 1), kernel_initializer=conv_init)(_)
     _ = LeakyReLU(alpha=0.2)(_)
 
+    print('Conv2D end')
+
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Conv2D(filters=512, kernel_size=(2, 2), strides=2, padding='same', input_shape=(64, 64, 256), kernel_initializer=conv_init)(_)
     _ = LeakyReLU(alpha=0.2)(_)
+
+    print('Conv2D end')
 
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Conv2D(filters=256, kernel_size=(2, 2), strides=2, padding='same', input_shape=(32, 32, 512), kernel_initializer=conv_init)(_)
     _ = LeakyReLU(alpha=0.2)(_)
 
+    print('Conv2D end')
+
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Conv2D(filters=128, kernel_size=(2, 2), strides=2, padding='same', input_shape=(16, 16, 256), kernel_initializer=conv_init)(_)
     _ = LeakyReLU(alpha=0.2)(_)
+
+    print('Conv2D end')
 
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Conv2D(filters=128, kernel_size=(2, 2), strides=2, padding='same', input_shape=(8, 8, 128), kernel_initializer=conv_init)(_)
     _ = LeakyReLU(alpha=0.2)(_)
 
+    print('Conv2D end')
+
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Conv2D(filters=1, kernel_size=(2, 2), strides=1, padding='same', input_shape=(4, 4, 128), kernel_initializer=conv_init)(_)
     #_ = LeakyReLU(alpha=0.2)(_)
 
+    print('Conv2D end')
+
     _ = Flatten()(_)
     outputs = Activation(activation='sigmoid')(_)
+
+    print('Flatten end')
 
     return Model(inputs=inputs, outputs=outputs)
 
@@ -184,9 +214,11 @@ while i < epoch:
     print("data shape : ", train_data.shape)
     print("image shape : ", train_image.shape)
 
+    print('Start Generator Training')
     err_g, = net_g_train([train_data, noise])
     err_g_sum += err_g
 
+    print('Start Discriminator Training')
     err_d, = net_d_train([train_image])
     err_d_sum += err_d
 

@@ -1,64 +1,89 @@
+'''
+        Author          : MagmaTart
+        Last Modified   : 05/06/2018
+'''
+
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
 import numpy as np
 from sklearn.preprocessing import normalize
 import cv2
-# TODO : python-opencv install
 
 from load_data import DataLoader
 from model import Model
 
-loader = DataLoader(data_path='../data_preprocessing/DataLoader/MYO_Dataset_label')
+print(tf.__version__)
 
-'''
-emg = loader.load_emg_data()
-image, label = loader.load_image()
+mode = 'pretrain'
+is_real_image = False
 
-print(emg.shape)
-print(image.shape, label)
+loader = DataLoader(data_path='./dataset_2018_05_03/', is_real_image=is_real_image)
 
-emg = loader.get_emg_datas(10)
-images, labels = loader.get_images(10)
-print(emg.shape, images.shape, labels.shape)
-'''
+batch_size = 16
+label_num = 9
 
-# images, emgs = loader.get_next_batch(3)
-#
-# print(type(images), images.shape)
-# print(type(emgs), emgs.shape)
-
-batch_size = 8
+model = Model(mode=mode, batch_size=batch_size, labels=label_num, learning_rate=0.0001, is_real_image=is_real_image)
+model.build()
 
 sess = tf.Session()
 
-model = Model(batch_size=8)
-model.build()
-
 sess.run(tf.global_variables_initializer())
 
-# print('Images shape :', images.shape)
-# print('EMGs shape :', emgs.shape)
-# print('Z vector shape :', z.shape)
+total_acc = 0
 
-# emgs = loader.get_next_second_emgs(batch_size)
-# images = loader.get_next_images(batch_size)
-# images = images/127.5
+if mode == 'pretrain':
+    # sess.run(tf.global_variables_initializer())
+    # restorer = tf.train.Saver()
+    # restorer.restore(sess, './pretrain/iter6000.ckpt')
 
-for i in range(10000):
-    print('Iteration ', i)
-    emgs = loader.get_emg_datas(batch_size)
-    images, labels = loader.get_images(batch_size)
+    for i in range(30001):
+        emgs = loader.get_emg_datas(batch_size)
+        _, labels = loader.get_images(batch_size)
 
-    images = images / 127.5
+        # for k in range(len(emgs)):
+        #     emgs[k] = normalize(emgs[k])
 
-    for i in range(len(emgs)):
-        emgs[i] = normalize(emgs[i])
+        _, loss, acc = sess.run([model.lstm_trainer, model.lstm_loss, model.lstm_accuracy], feed_dict={model.emg_data:emgs, model.y_label:labels})
+        print('Iteration', i, ' -', 'Loss :', loss, 'Acc :', acc)
 
-    z = np.random.rand(batch_size, 20)
+        if i % 500 == 0:
+            saver = tf.train.Saver()
+            saver.save(sess, './pretrain/' + 'iter' + str(i) + '.ckpt')
 
-    _, _, ld, lg = sess.run([model.d_optimizer, model.g_optimizer, model.d_loss, model.g_loss], feed_dict={model.real_image:images, model.emg_data:emgs, model.z:z})
-    print(ld, lg)
+        # print('Iteration', i)
 
-    test = sess.run(model.fake_image, feed_dict={model.emg_data:emgs, model.z:z})
-    print(test.shape)
-    # cv2.imshow('Test', test[0])
-    # cv2.waitKey(100000)
+elif mode == 'pretrain-test':
+    # ValueError: No variables to save
+    restorer = tf.train.Saver()
+    restorer.restore(sess, './pretrain/iter6000.ckpt')
+
+    total = 0
+
+    for i in range(100):
+        print('Iteration', i)
+        emgs = loader.get_emg_datas(batch_size)
+        _, labels = loader.get_images(batch_size)
+        acc = sess.run(model.lstm_accuracy, feed_dict={model.emg_data: emgs, model.y_label: labels})
+        total += acc
+
+    print('Average accuracy :', total/100)
+
+elif mode == 'train':
+    for i in range(10000):
+        print('Iteration ', i)
+        emgs = loader.get_emg_datas(batch_size)
+        images, labels = loader.get_images(batch_size)
+
+        images = images / 127.5
+
+        for k in range(len(emgs)):
+            emgs[k] = normalize(emgs[k])
+
+        z = np.random.rand(batch_size, 100)
+
+        _, _, ld, lg = sess.run([model.d_optimizer, model.g_optimizer, model.d_loss, model.g_loss], feed_dict={model.real_image:images, model.emg_data:emgs, model.z:z})
+        print(ld, lg)
+
+        test = sess.run(model.fake_image, feed_dict={model.emg_data:emgs, model.z:z})
+        print(test.shape)
+        cv2.imwrite('./samples/' + str(i) + '.png', test[0]*127.5)
