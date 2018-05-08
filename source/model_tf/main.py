@@ -14,10 +14,10 @@ from model import Model
 
 print(tf.__version__)
 
-mode = 'pretrain'
+mode = 'train'
 is_real_image = False
 
-loader = DataLoader(data_path='./dataset_2018_05_03/', is_real_image=is_real_image)
+loader = DataLoader(data_path='./dataset_2018_05_06/', is_real_image=is_real_image)
 
 batch_size = 16
 label_num = 9
@@ -69,6 +69,9 @@ elif mode == 'pretrain-test':
     print('Average accuracy :', total/100)
 
 elif mode == 'train':
+    # restorer = tf.train.Saver()
+    # restorer.restore(sess, './pretrain/iter6000.ckpt')
+
     for i in range(10000):
         print('Iteration ', i)
         emgs = loader.get_emg_datas(batch_size)
@@ -79,7 +82,7 @@ elif mode == 'train':
         for k in range(len(emgs)):
             emgs[k] = normalize(emgs[k])
 
-        z = np.random.rand(batch_size, 100)
+        z = np.random.rand(batch_size, 1000)
 
         _, _, ld, lg = sess.run([model.d_optimizer, model.g_optimizer, model.d_loss, model.g_loss], feed_dict={model.real_image:images, model.emg_data:emgs, model.z:z})
         print(ld, lg)
