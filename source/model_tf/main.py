@@ -19,7 +19,7 @@ is_real_image = False
 
 loader = DataLoader(data_path='./dataset_2018_05_06/', is_real_image=is_real_image)
 
-batch_size = 16
+batch_size = 8
 label_num = 9
 
 model = Model(mode=mode, batch_size=batch_size, labels=label_num, learning_rate=0.0001, is_real_image=is_real_image)
