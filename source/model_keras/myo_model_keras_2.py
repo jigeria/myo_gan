@@ -72,24 +72,25 @@ def generative_model(noise_size):
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Reshape((16, 16, 1), input_shape=(256,))(_)
 
-    _ = Conv2D(filters=128, kernel_size=(3, 3), strides=1, padding='same', kernel_initializer=conv_init, input_shape=(16, 16, 1))(_)
+    _ = Conv2D(filters=128, kernel_size=(3, 3), strides=1, padding='same', kernel_initializer=conv_init, input_shape=(16, 16, 1))(
+        _)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
 
     _ = UpSampling2D()(_)
-    _ = Conv2DTranspose(filters=256, kernel_size=3, padding='same', kernel_initializer=conv_init,
+    _ = Conv2D(filters=256, kernel_size=3, padding='same', kernel_initializer=conv_init,
                         input_shape=(16, 16, 128))(_)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
 
     _ = UpSampling2D()(_)
-    _ = Conv2DTranspose(filters=512, kernel_size=3, padding='same',  kernel_initializer=conv_init,
+    _ = Conv2D(filters=512, kernel_size=3, padding='same',  kernel_initializer=conv_init,
                         input_shape=(32, 32, 256))(_)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
 
     _ = UpSampling2D()(_)
-    _ = Conv2DTranspose(filters=256, kernel_size=3, padding='same', kernel_initializer=conv_init,
+    _ = Conv2D(filters=256, kernel_size=3, padding='same', kernel_initializer=conv_init,
                         input_shape=(64, 64, 512))(_)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
@@ -187,13 +188,13 @@ print(emg.shape, images.shape, labels.shape)
 
 '''
 
-epoch = 50
+epoch = 30000
 i = 0
 time_0 = time.time()
 err_d = err_g = 0
 err_d_sum = 0
 err_g_sum = 0
-batch_size = 64
+batch_size = 32
 
 d_label = np.zeros(shape=[batch_size])
 g_label = np.zeros(shape=[batch_size])
@@ -221,8 +222,10 @@ while i < epoch:
 
     print("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (i, d_loss[0], 100 * d_loss[1], g_loss))
 
-    gan_image = net_g.predict(noise)
-    print("gan imaga2 : ", gan_image.shape)
-    cv2.imwrite('./output_image2/' + str(i) + '.png', gan_image[0] * 127.5)
+    if i % 500 == 0:
+        gan_image = net_g.predict(noise)
+        print("gan imaga2 : ", gan_image[0].shape)
+        cv2.imwrite('./output_image3/' + 'fake_image'+ str(i) + '.png', gan_image[0] * 127.5)
+        cv2.imwrite('./output_image3/' + 'real_imadge'+ str(i) + '.png', images[0] * 127.5)
 
     i += 1;
