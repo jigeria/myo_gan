@@ -17,8 +17,12 @@ class DataLoader:
 
         self.is_real_image = is_real_image
 
-        self.emg_file_index = 1
-        self.image_dir_index = 1
+        if is_real_image:
+            self.emg_file_index = 6
+            self.image_dir_index = 6
+        else:
+            self.emg_file_index = 1
+            self.image_dir_index = 1
 
         self.emg_index = 0
         self.image_index = 0
