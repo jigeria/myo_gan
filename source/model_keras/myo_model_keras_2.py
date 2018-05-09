@@ -4,9 +4,8 @@ import os
 os.environ['KERAS_BACKEND'] = 'tensorflow'  # 也可以使用 tensorflow
 # os.environ['THEANO_FLAGS']='floatX=float32,device=cuda,exception_verbosity=high'
 os.environ['THEANO_FLAGS'] = 'floatX=float32,device=cuda,optimizer=fast_compile'
-#os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
-import tensorflow
 import keras.backend as K
 
 K.set_image_data_format('channels_last')
@@ -14,7 +13,7 @@ K.set_image_data_format('channels_last')
 import time
 from keras.models import Sequential, Model
 from keras.layers import Conv2D, ZeroPadding2D, BatchNormalization, Input, LSTM, Concatenate, Dense
-from keras.layers import Conv2DTranspose, Reshape, Activation, Cropping2D, Flatten
+from keras.layers import Conv2DTranspose, Reshape, Activation, Cropping2D, Flatten, UpSampling2D
 from keras.layers.advanced_activations import LeakyReLU
 from keras.activations import relu
 from keras.initializers import RandomNormal
@@ -22,11 +21,10 @@ from keras.datasets import mnist
 from urllib.request import urlretrieve
 from keras.optimizers import RMSprop, SGD, Adam
 import numpy as np
+import cv2
 
-#from read_data import *
+# from read_data import *
 from load_data import DataLoader
-
-print(tensorflow.__version__)
 
 '''
 Model structure
@@ -50,109 +48,107 @@ Discriminator
 64 -> 32 (16, 10)
 
 '''
-loader = DataLoader(data_path='../data_preprocessing/DataLoader/MYO_Dataset_label')
+loader = DataLoader(data_path='./dataset_2018_05_06/')
 
 conv_init = RandomNormal(0, 0.02)
 gamma_init = RandomNormal(1., 0.02)
 
+
+def generator_containing_discriminator(g, d):
+    model = Sequential()
+    model.add(g)
+    d.trainable = False
+    model.add(d)
+
+    return model
+
+
 def generative_model(noise_size):
-
-    print('Generator start')
-    lstm_layer = LSTM(80, input_shape=lstm_size)(lstm_input)
-    _ = Concatenate(axis=-1)([lstm_layer, noise_input])
-    print(" _ : ", _)
-    _ = Dense(256, input_shape=(100, ), activation='relu', bias_initializer='glorot_normal', kernel_initializer='glorot_normal')(_)
+    # lstm_layer = LSTM(80, input_shape=lstm_size)(lstm_input)
+    # _ = Concatenate(axis=-1)([lstm_layer, noise_input])
+    print(" _ : ", noise_input)
+    _ = Dense(256, input_shape=(100,), activation='relu', bias_initializer='glorot_normal',
+              kernel_initializer='glorot_normal')(noise_input)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Reshape((16, 16, 1), input_shape=(256, ))(_)
+    _ = Reshape((16, 16, 1), input_shape=(256,))(_)
 
-    print('Dense end')
-
-    _ = Conv2D(filters=128, kernel_size=(2, 2), padding='same', kernel_initializer=conv_init, input_shape=(16, 16, 1))(_)
+    _ = Conv2D(filters=128, kernel_size=(3, 3), strides=1, padding='same', kernel_initializer=conv_init, input_shape=(16, 16, 1))(_)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
 
-    print('Conv2D end')
-
-    _ = Conv2DTranspose(filters=256, kernel_size=(2, 2), strides=2, kernel_initializer=conv_init, input_shape=(16, 16, 128))(_)
+    _ = UpSampling2D()(_)
+    _ = Conv2DTranspose(filters=256, kernel_size=3, padding='same', kernel_initializer=conv_init,
+                        input_shape=(16, 16, 128))(_)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
 
-    print('Conv2D_T end')
-
-    _ = Conv2DTranspose(filters=512, kernel_size=(2, 2), strides=2, kernel_initializer=conv_init, input_shape=(32, 32, 256))(_)
+    _ = UpSampling2D()(_)
+    _ = Conv2DTranspose(filters=512, kernel_size=3, padding='same',  kernel_initializer=conv_init,
+                        input_shape=(32, 32, 256))(_)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
 
-    print('Conv2D_T end')
-
-    _ = Conv2DTranspose(filters=256, kernel_size=(2, 2), strides=2, kernel_initializer=conv_init, input_shape=(64, 64, 512))(_)
+    _ = UpSampling2D()(_)
+    _ = Conv2DTranspose(filters=256, kernel_size=3, padding='same', kernel_initializer=conv_init,
+                        input_shape=(64, 64, 512))(_)
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
     _ = Activation(activation='relu')(_)
 
-    print('Conv2D_T end')
-
-    _ = Conv2D(filters=1, kernel_size=(128, 128), padding='same', kernel_initializer=conv_init, input_shape=(128, 128, 256))(_)
+    #_ = UpSampling2D()(_)
+    _ = Conv2D(filters=1, kernel_size=3, padding='same', kernel_initializer=conv_init,
+               input_shape=(128, 128, 256))(_)
     _ = Activation(activation='relu')(_)
 
-    print('Conv2D end')
+    return Model(inputs=noise_input, outputs=_)
 
-    return Model(inputs=[lstm_input, noise_input], outputs=_)
 
 def discriminative_model(image_size, image_channel):
-
     _ = inputs = Input(shape=(image_size, image_size, image_channel))
 
-    _ = Conv2D(filters=256, kernel_size=(2, 2), strides=2, padding='same', input_shape=(128, 128, 1), kernel_initializer=conv_init)(_)
+    _ = Conv2D(filters=256, kernel_size=(2, 2), strides=2, padding='same', input_shape=(128, 128, 1),
+               kernel_initializer=conv_init)(_)
     _ = LeakyReLU(alpha=0.2)(_)
 
-    print('Conv2D end')
-
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Conv2D(filters=512, kernel_size=(2, 2), strides=2, padding='same', input_shape=(64, 64, 256), kernel_initializer=conv_init)(_)
+    _ = Conv2D(filters=512, kernel_size=(1, 1), strides=2, padding='same', input_shape=(64, 64, 256),
+               kernel_initializer=conv_init)(_)
     _ = LeakyReLU(alpha=0.2)(_)
 
-    print('Conv2D end')
-
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Conv2D(filters=256, kernel_size=(2, 2), strides=2, padding='same', input_shape=(32, 32, 512), kernel_initializer=conv_init)(_)
+    _ = Conv2D(filters=256, kernel_size=(2, 2), strides=2, padding='same', input_shape=(32, 32, 512),
+               kernel_initializer=conv_init)(_)
     _ = LeakyReLU(alpha=0.2)(_)
 
-    print('Conv2D end')
-
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Conv2D(filters=128, kernel_size=(2, 2), strides=2, padding='same', input_shape=(16, 16, 256), kernel_initializer=conv_init)(_)
+    _ = Conv2D(filters=128, kernel_size=(2, 2), strides=2, padding='same', input_shape=(16, 16, 256),
+               kernel_initializer=conv_init)(_)
     _ = LeakyReLU(alpha=0.2)(_)
 
-    print('Conv2D end')
-
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Conv2D(filters=128, kernel_size=(2, 2), strides=2, padding='same', input_shape=(8, 8, 128), kernel_initializer=conv_init)(_)
+    _ = Conv2D(filters=128, kernel_size=(2, 2), strides=2, padding='same', input_shape=(8, 8, 128),
+               kernel_initializer=conv_init)(_)
     _ = LeakyReLU(alpha=0.2)(_)
 
-    print('Conv2D end')
-
     _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Conv2D(filters=1, kernel_size=(2, 2), strides=1, padding='same', input_shape=(4, 4, 128), kernel_initializer=conv_init)(_)
-    #_ = LeakyReLU(alpha=0.2)(_)
+    _ = Conv2D(filters=1, kernel_size=(2, 2), strides=1, padding='same', input_shape=(4, 4, 128),
+               kernel_initializer=conv_init)(_)
+    # _ = LeakyReLU(alpha=0.2)(_)
 
-    print('Conv2D end')
-
-    _ = Flatten()(_)
-    outputs = Activation(activation='sigmoid')(_)
-
-    print('Flatten end')
+    outputs = Flatten()(_)
+    outputs = Dense(1, activation='sigmoid')(outputs)
 
     return Model(inputs=inputs, outputs=outputs)
 
+
 lstm_size = (300, 16)
-#print("lstm size : ", lstm_size)
-noise_size = 20
+noise_size = 100
 image_size = 128
 input_size = 100
 image_channel = 1
 learning_rate = 2e-4
+optimizer = Adam(0.0002, 0.5)
 
-lstm_input = Input(shape=lstm_size)
+# lstm_input = Input(shape=lstm_size)
 noise_input = Input(shape=(noise_size,))
 real_image = Input(shape=(image_size, image_size, image_channel))
 
@@ -162,22 +158,19 @@ net_g.summary()
 net_d = discriminative_model(image_size, image_channel)
 net_d.summary()
 
-fake_image = net_g([lstm_input, noise_input])
-net_d_fake = net_d(fake_image)
-net_d_real = net_d(real_image)
+net_d.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
-loss_fn = lambda output, target: -K.mean(K.log(output + 1e-12) * target + K.log(1 - output + 1e-12) * (1 - target))
+fake_image = net_g(noise_input)
 
-loss_d_real = loss_fn(net_d_real, K.ones_like(net_d_real))
-loss_d_fake = loss_fn(net_d_fake, K.zeros_like(net_d_fake))
-loss_g = loss_fn(net_d_fake, K.ones_like(net_d_fake))
+net_d.trainable = False
 
-loss_d = loss_d_real + loss_d_fake
-training_updates = Adam(lr=learning_rate, beta_1=0.5).get_updates(net_d.trainable_weights, [], loss_d)
-net_d_train = K.function([real_image], [loss_d / 2.0], training_updates)
+valid = net_d(fake_image)
 
-training_updates = Adam(lr=learning_rate, beta_1=0.5).get_updates(net_g.trainable_weights, [], loss_g)
-net_g_train = K.function([lstm_input, noise_input], [loss_g], training_updates)
+combined_model = Model(inputs=noise_input, outputs=valid)
+combined_model.compile(loss='binary_crossentropy', optimizer=optimizer)
+
+# net_g.compile(loss='binary_crossentropy', optimizer='SGD')
+
 
 '''
 loader = DataLoader(data_path='./MYO_Dataset_label/')
@@ -200,47 +193,36 @@ time_0 = time.time()
 err_d = err_g = 0
 err_d_sum = 0
 err_g_sum = 0
-batch_size = 24
+batch_size = 64
+
+d_label = np.zeros(shape=[batch_size])
+g_label = np.zeros(shape=[batch_size])
+
+print(d_label)
+print(d_label.shape)
 
 while i < epoch:
-    j = 0
-
+    # x_train = loader.get_emg_datas(batch_size)
+    images, labels = loader.get_images(batch_size)
     noise = np.random.normal(size=(batch_size, noise_size))
-    print("noise size : ", noise.shape)
 
-    train_image, _ = loader.get_images(batch_size)
-    train_data = loader.get_emg_datas(batch_size)
+    gan_image = net_g.predict(noise)
+    print("gan imaga1 : ", gan_image.shape)
 
-    print("data shape : ", train_data.shape)
-    print("image shape : ", train_image.shape)
+    d_loss_real = net_d.train_on_batch(images, np.ones(shape=(batch_size, 1)))
+    d_loss_fake = net_d.train_on_batch(gan_image, np.zeros(shape=(batch_size, 1)))
+    d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
 
-    print('Start Generator Training')
-    err_g, = net_g_train([train_data, noise])
-    err_g_sum += err_g
+    # print("epoch[%d] d_loss[%f]" % (i, d_loss))
 
-    print('Start Discriminator Training')
-    err_d, = net_d_train([train_image])
-    err_d_sum += err_d
+    g_loss = combined_model.train_on_batch(noise, np.ones(shape=(batch_size, 1)))
 
-    print("[%d] [%d] D[%f] G[%f] Time[%d]" % (i, j, err_d_sum, err_g_sum, time.time() - time_0))
-    i += 1
-'''
- while j < batch_size:
-        train_image = loader.get_next_images(1)
-        data = loader.get_next_second_emgs()
+    # print("epoch[%d] g_loss[%f]" % (i, g_loss))
 
-        #data = data.reshape(data[0, :, 1].size, data[0, 0, :].size)
-        data = data.astype(float)
-        print(data.shape)
+    print("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (i, d_loss[0], 100 * d_loss[1], g_loss))
 
-        print(type(train_image), train_image.shape)
-        print(type(data), data.shape)
-        print(data.dtype)
+    gan_image = net_g.predict(noise)
+    print("gan imaga2 : ", gan_image.shape)
+    cv2.imwrite('./output_image2/' + str(i) + '.png', gan_image[0] * 127.5)
 
-        j += 1
-        err_g, = net_g_train([data, noise])
-        err_g_sum += err_g
-
-        err_d, = net_d_train([train_image])
-        err_d_sum += err_d
-'''
+    i += 1;

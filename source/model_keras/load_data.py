@@ -1,6 +1,6 @@
 '''
         Author          : MagmaTart
-        Last Modified   : 05/01/2018
+        Last Modified   : 05/06/2018
 '''
 
 import pandas as pd
@@ -10,10 +10,12 @@ import cv2
 import os
 
 class DataLoader:
-    def __init__(self, data_path='./MYO_Dataset_label/'):
+    def __init__(self, data_path='./MYO_Dataset_label/', is_real_image=False):
         if data_path[-1] is not '/':
             data_path = data_path + '/'
         self.data_path = data_path
+
+        self.is_real_image = is_real_image
 
         self.emg_file_index = 1
         self.image_dir_index = 1
@@ -31,6 +33,8 @@ class DataLoader:
 
         self.set_new_image_directory(self.image_dir_index)
 
+        print(self.data_files_count)
+
         # Property : All images count (All Data count)
 
     def set_new_image_directory(self, image_dir_index):
@@ -39,15 +43,22 @@ class DataLoader:
                 디렉토리 내부 이미지를 읽기 위한 세팅
         '''
 
-        self.image_dir_file_list = os.listdir(self.data_path + str(image_dir_index) + '/')
+        image_dir_path = self.data_path + str(image_dir_index) + '/'
+
+        if self.is_real_image:
+            self.image_dir_file_list = [name for name in os.listdir(image_dir_path) if 'real' in name]
+        else:
+            self.image_dir_file_list = [name for name in os.listdir(image_dir_path) if 'edge' in name]
+
         self.image_file_names = []
         self.image_file_labels = []
 
-        for i in range(len(self.image_dir_file_list)):
-            self.image_file_names.append(self.image_dir_file_list[i][:-4].split('-')[0])
-            self.image_file_labels.append(int(self.image_dir_file_list[i][:-4].split('-')[1]))
+        # print(self.image_dir_file_list)
 
-            # print(self.image_file_names[0])
+        for i in range(len(self.image_dir_file_list)):
+            self.image_file_names.append(self.image_dir_file_list[i][:-4].split('-')[0] + '-' +
+                                         self.image_dir_file_list[i][:-4].split('-')[1])
+            self.image_file_labels.append(int(self.image_dir_file_list[i][:-4].split('-')[2]))
 
     def load_emg_data(self):
         '''
@@ -62,6 +73,7 @@ class DataLoader:
             emg_data_a = csv_file[self.emg_index:, 1:]
             remained_length = 600 - (csv_file.shape[0] - self.emg_index)
             self.emg_file_index = (self.emg_file_index % self.data_files_count) + 1
+            # self.emg_file_index = (self.emg_file_index % 5) + 1
             csv_file = np.array(
                 pd.read_csv(self.data_path + str(self.emg_file_index) + '.csv', sep=',').values.tolist())
             emg_data_b = csv_file[0:remained_length, 1:]
@@ -80,17 +92,30 @@ class DataLoader:
                 return : (128, 128, 1)
         '''
 
-        image_name = 'hand' + str(self.image_index)
-        image_index = self.image_file_names.index(image_name)
-        label = self.image_file_labels[image_index]
-        image = cv2.imread(self.data_path + str(self.image_dir_index) + '/' + image_name + '-' + str(label) + '.png',
-                           cv2.IMREAD_GRAYSCALE)
-        image = np.reshape(image, (128, 128, 1))
+        if self.is_real_image:
+            image_name = 'hand-real' + str(self.image_index)
+            image_index = self.image_file_names.index(image_name)
+            label = self.image_file_labels[image_index]
+            image = cv2.imread(
+                self.data_path + str(self.image_dir_index) + '/' + image_name + '-' + str(label) + '.png')
+            image = np.reshape(image, (128, 128, 3))
+
+        else:
+            image_name = 'hand-edge' + str(self.image_index)
+            image_index = self.image_file_names.index(image_name)
+            label = self.image_file_labels[image_index]
+            # print(self.image_dir_index, image_name, label)
+            image = cv2.imread(
+                self.data_path + str(self.image_dir_index) + '/' + image_name + '-' + str(label) + '.png',
+                cv2.IMREAD_GRAYSCALE)
+            # print(self.data_path + str(self.image_dir_index) + '/' + image_name + '-' + str(label) + '.png')
+            image = np.reshape(image, (128, 128, 1))
 
         self.image_index += 1
         if self.image_index >= len(self.image_file_names):
             self.image_index = 0
             self.image_dir_index = (self.image_dir_index % self.data_files_count) + 1
+            # self.image_dir_index = (self.image_dir_index % 5) + 1
             self.set_new_image_directory(self.image_dir_index)
 
         return image, label
