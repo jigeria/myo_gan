@@ -12,256 +12,113 @@ K.set_image_data_format('channels_last')
 
 import time
 from keras.models import Sequential, Model
-from keras.layers import Conv2D, ZeroPadding2D, BatchNormalization, Input, LSTM, Concatenate, Dense
-from keras.layers import Conv2DTranspose, Reshape, Activation, Cropping2D, Flatten, UpSampling2D
+from keras.layers import Conv2D, ZeroPadding2D, BatchNormalization, Input, LSTM, Concatenate, Dense, Dropout
+from keras.layers import Conv2DTranspose, Reshape, Activation, Cropping2D, Flatten, UpSampling2D, AveragePooling2D
 from keras.layers.advanced_activations import LeakyReLU
 from keras.activations import relu
 from keras.initializers import RandomNormal
 from keras.datasets import mnist
 from urllib.request import urlretrieve
-from keras.optimizers import RMSprop, SGD, Adam
+from keras.optimizers import RMSprop, SGD, Adam, sgd
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+from keras.models import model_from_json
 
 # from read_data import *
-from load_data import DataLoader
-
-'''
-Model structure
-
-Input : (100) Vector
-Output : (64, 64, 1) image
-
-Generator
-100 -> 256
-256 -> 16 x 16
-16 x 16 -> 32 x 32
-32 x 32 -> 64 x 64
-64 x 64 -> 128 x 128
-
-Discriminator
-128 x 128 -> 64 x 64
-64 x 64 -> 32 x 32
-32 x 32 -> 16 x 16
-16 x 16 -> 8 x 8
-8 x 8 -> 64
-64 -> 32 (16, 10)
-
-'''
-loader = DataLoader(data_path='./dataset_2018_05_06/', is_real_image=False)
-
-conv_init = RandomNormal(0, 0.02)
-gamma_init = RandomNormal(1., 0.02)
-
-
-def generator_containing_discriminator(g, d):
-    model = Sequential()
-    model.add(g)
-    d.trainable = False
-    model.add(d)
-
-    return model
-
-
-def generative_model(noise_size, image_channel):
-    # lstm_layer = LSTM(80, input_shape=lstm_size)(lstm_input)
-    # _ = Concatenate(axis=-1)([lstm_layer, noise_input])
-    print(" _ : ", noise_input)
-    _ = Dense(2 * 2 * 512, input_shape=(100,), activation='relu', bias_initializer='glorot_normal',
-              kernel_initializer='glorot_normal')(noise_input)
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Reshape((2, 2, 512), input_shape=(2 * 2 * 512,))(_)
+#a = % pwd
+#print(a)
 
-    _ = Conv2D(filters=256, kernel_size=(3, 3), strides=1, padding='same', kernel_initializer=conv_init)(_)
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Activation(activation='relu')(_)
+#% run / root / jupyter / inspace / sang - min / myo_proejct / load_data.py
+from load_data import DataLoader_Continous
 
-    _ = UpSampling2D()(_)
-    _ = Conv2D(filters=128, kernel_size=3, padding='same', kernel_initializer=conv_init)(_)
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Activation(activation='relu')(_)
+# %load load_data import DataLoader
+# from load_data import DataLoader
 
-    _ = UpSampling2D()(_)
-    _ = Conv2D(filters=64, kernel_size=3, padding='same', kernel_initializer=conv_init)(_)
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Activation(activation='relu')(_)
+class MYO_GAN():
+    def __init__(self):
+        self.loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False)
 
-    _ = UpSampling2D()(_)
-    _ = Conv2D(filters=32, kernel_size=3, padding='same', kernel_initializer=conv_init)(_)
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Activation(activation='relu')(_)
+        self.lstm_size = (300, 16)
+        self.noise_size = 100
+        self.image_size = 128
+        self.input_size = 100
+        self.image_channel = 1
+        self.learning_rate = 2e-4
+        self.epoch = 1000
+        self.batch_size = 32
+        self.emg_size = 8
 
-    _ = UpSampling2D()(_)
-    _ = Conv2D(filters=16, kernel_size=3, padding='same', kernel_initializer=conv_init)(_)
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Activation(activation='relu')(_)
+        self.image_input = Input(shape=(self.image_size, self.image_size, self.image_channel))
+        self.emg_input = Input(shape=(self.emg_size, ))
 
-    _ = UpSampling2D()(_)
-    _ = Conv2D(filters=8, kernel_size=3, padding='same', kernel_initializer=conv_init)(_)
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Activation(activation='relu')(_)
+        self.adam = Adam(lr=0.0002, beta_1=0.5, beta_2=0.999)  # as described in appendix A of DeepMind's AC-GAN paper
 
-    _ = UpSampling2D()(_)
-    _ = Conv2D(filters=image_channel, kernel_size=3, padding='same', kernel_initializer=conv_init)(_)
-    _ = Activation(activation='relu')(_)
 
-    return Model(inputs=noise_input, outputs=_)
+    def make_condition_model(self):
+        _ = inputs = Input(shape=(self.image_size, self.image_size, self.image_channel))
 
+        _ = Conv2D(filters=256, kernel_size=(2, 2), strides=2, padding='same', input_shape=(128, 128, 1))(_)
+        _ = LeakyReLU(alpha=0.2)(_)
 
-def discriminative_model(image_size, image_channel):
-    _ = inputs = Input(shape=(image_size, image_size, image_channel))
+        _ = BatchNormalization(axis=1)(_, training=1)
+        _ = Conv2D(filters=512, kernel_size=(1, 1), strides=2, padding='same', input_shape=(64, 64, 256))(_)
+        _ = LeakyReLU(alpha=0.2)(_)
 
-    _ = Conv2D(filters=256, kernel_size=(2, 2), strides=2, padding='same',
-               input_shape=(image_size, image_size, image_channel),
-               kernel_initializer=conv_init)(_)
-    _ = LeakyReLU(alpha=0.2)(_)
+        _ = BatchNormalization(axis=1)(_, training=1)
+        _ = Conv2D(filters=256, kernel_size=(2, 2), strides=2, padding='same', input_shape=(32, 32, 512))(_)
+        _ = LeakyReLU(alpha=0.2)(_)
 
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Conv2D(filters=512, kernel_size=(1, 1), strides=2, padding='same', input_shape=(64, 64, 256),
-               kernel_initializer=conv_init)(_)
-    _ = LeakyReLU(alpha=0.2)(_)
+        _ = BatchNormalization(axis=1)(_, training=1)
+        _ = Conv2D(filters=128, kernel_size=(2, 2), strides=2, padding='same', input_shape=(16, 16, 256))(_)
+        _ = LeakyReLU(alpha=0.2)(_)
 
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Conv2D(filters=256, kernel_size=(2, 2), strides=2, padding='same', input_shape=(32, 32, 512),
-               kernel_initializer=conv_init)(_)
-    _ = LeakyReLU(alpha=0.2)(_)
+        _ = BatchNormalization(axis=1)(_, training=1)
+        _ = Conv2D(filters=128, kernel_size=(2, 2), strides=2, padding='same', input_shape=(8, 8, 128))(_)
+        _ = LeakyReLU(alpha=0.2)(_)
 
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Conv2D(filters=128, kernel_size=(2, 2), strides=2, padding='same', input_shape=(16, 16, 256),
-               kernel_initializer=conv_init)(_)
-    _ = LeakyReLU(alpha=0.2)(_)
+        _ = BatchNormalization(axis=1)(_, training=1)
+        _ = Conv2D(filters=self.image_channel, kernel_size=(3, 3), strides=1, padding='same', input_shape=(4, 4, 128))(
+            _)
 
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Conv2D(filters=128, kernel_size=(2, 2), strides=2, padding='same', input_shape=(8, 8, 128),
-               kernel_initializer=conv_init)(_)
-    _ = LeakyReLU(alpha=0.2)(_)
+        outputs = Flatten()(_)
+        outputs = Dense(8, activation='relu')(outputs)
 
-    _ = BatchNormalization(axis=1, gamma_initializer=gamma_init)(_, training=1)
-    _ = Conv2D(filters=1, kernel_size=(2, 2), strides=1, padding='same', input_shape=(4, 4, 128),
-               kernel_initializer=conv_init)(_)
-    # _ = LeakyReLU(alpha=0.2)(_)
+        return Model(inputs=inputs, outputs=outputs)
 
-    outputs = Flatten()(_)
-    outputs = Dense(1, activation='sigmoid')(outputs)
+    def train_condition_model(self, make_condition_model):
 
-    return Model(inputs=inputs, outputs=outputs)
+        #intput = Input(shape=(self.emg_size, ))
+        model = Sequential()
+        model.add(make_condition_model)
 
 
-lstm_size = (300, 16)
-noise_size = 100
-image_size = 128
-input_size = 100
-image_channel = 1
-learning_rate = 2e-4
-optimizer = Adam(0.0002, 0.5)
+    def train(self, net_condition):
+        i = 0
 
-# lstm_input = Input(shape=lstm_size)
-noise_input = Input(shape=(noise_size,))
-real_image = Input(shape=(image_size, image_size, image_channel))
+        condition_output = net_condition(self.image_input)
+        train_y = Input(shape=(self.emg_size, ))
 
-net_g = generative_model(noise_size, image_channel)
-net_g.summary()
+        estimate_net_c = Model(inputs=[self.image_input], outputs=[condition_output], name='estimate_net_c')
 
-net_d = discriminative_model(image_size, image_channel)
-net_d.summary()
+        net_condition.compile(loss='mean_squared_error', optimizer=self.adam)
+        estimate_net_c.compile(loss='mean_squared_error', optimizer=self.adam)
 
-net_d.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+        while i <= self.epoch:
+            images = self.loader.get_images(self.batch_size)
+            emg_data = self.loader.get_emg_datas(self.batch_size)
 
-fake_image = net_g(noise_input)
+            loss = estimate_net_c.train_on_batch(images, emg_data)
 
-net_d.trainable = False
+            print("%d [loss: %f]" % (loss))
 
-valid = net_d(fake_image)
 
-combined_model = Model(inputs=noise_input, outputs=valid)
-combined_model.compile(loss='binary_crossentropy', optimizer=optimizer)
+if __name__ =='__main__':
+    myo_gan = MYO_GAN()
 
-# net_g.compile(loss='binary_crossentropy', optimizer='SGD')
+    make_condition = myo_gan.make_condition_model()
+    make_condition.summary()
 
+    myo_gan.train(make_condition)
 
-'''
-loader = DataLoader(data_path='./MYO_Dataset_label/')
 
-emg = loader.load_emg_data()
-image, label = loader.load_image()
-
-print(emg.shape)
-print(image.shape, label)
-
-emg = loader.get_emg_datas(10)
-images, labels = loader.get_images(10)
-print(emg.shape, images.shape, labels.shape)
-
-'''
-
-epoch = 15000
-i = 0
-time_0 = time.time()
-batch_size = 64
-
-d_loss_history = []
-g_loss_history = []
-d_acc_history = []
-
-while i < epoch:
-    # x_train = loader.get_emg_datas(batch_size)
-    images, labels = loader.get_images(batch_size)
-    noise = np.random.normal(size=(batch_size, noise_size))
-
-    gan_image = net_g.predict(noise)
-    print("gan imaga1 : ", gan_image.shape)
-
-    d_loss_real = net_d.train_on_batch(images, np.ones(shape=(batch_size, 1)))
-    d_loss_fake = net_d.train_on_batch(gan_image, np.zeros(shape=(batch_size, 1)))
-    d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
-
-    # print("epoch[%d] d_loss[%f]" % (i, d_loss))
-
-    g_loss = combined_model.train_on_batch(noise, np.ones(shape=(batch_size, 1)))
-
-    # print("epoch[%d] g_loss[%f]" % (i, g_loss))
-
-    print("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (i, d_loss[0], 100 * d_loss[1], g_loss))
-
-    g_loss_history.append(g_loss)
-    d_loss_history.append(d_loss[0])
-    d_acc_history.append(100 * d_loss[1])
-
-    if i % 500 == 0:
-        gan_image = net_g.predict(noise)
-        print("gan imaga2 : ", gan_image[0].shape)
-        cv2.imwrite('./output_image3/' + 'fake_image' + str(i) + '.png', gan_image[0] * 127.5)
-        # cv2.imwrite('./output_image3/' + 'real_image'+ str(i) + '.png', images[0] * 127.5)
-
-    i += 1;
-
-plt.figure(1, figsize=(16, 8))
-plt.plot(d_loss_history)
-plt.ylabel('d_loss')
-plt.xlabel('epoch')
-plt.legend(['train'], loc='upper left')
-
-plt.savefig('./output_image3/d_loss_history.png')
-
-# plt.show()
-
-plt.figure(2, figsize=(16, 8))
-plt.plot(g_loss_history)
-plt.ylabel('g_loss')
-plt.xlabel('epoch')
-plt.legend(['train'], loc='upper left')
-
-plt.savefig('./output_image3/g_loss_history.png')
-
-# plt.show()\
-
-plt.figure(3, figsize=(16, 8))
-plt.plot(d_acc_history)
-plt.ylabel('d_acc')
-plt.xlabel('epoch')
-plt.legend(['train'], loc='upper left')
-
-plt.savefig('./output_image3/d_acc_history.png')
-
-plt.show()
