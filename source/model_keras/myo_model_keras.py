@@ -37,20 +37,19 @@ from load_data import DataLoader_Continous
 
 class MYO_GAN():
     def __init__(self):
-        self.loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False)
+        self.loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False, data_type=2)
 
-        self.lstm_size = (300, 16)
         self.noise_size = 100
         self.image_size = 128
         self.input_size = 100
         self.image_channel = 1
         self.learning_rate = 2e-4
         self.epoch = 1000
-        self.batch_size = 32
-        self.emg_size = 8
+        self.batch_size = 16
+        self.emg_size = (10, 8)
 
         self.image_input = Input(shape=(self.image_size, self.image_size, self.image_channel))
-        self.emg_input = Input(shape=(self.emg_size, ))
+        self.emg_input = Input(shape=self.emg_size, )
 
         self.adam = Adam(lr=0.0002, beta_1=0.5, beta_2=0.999)  # as described in appendix A of DeepMind's AC-GAN paper
 
@@ -82,22 +81,16 @@ class MYO_GAN():
             _)
 
         outputs = Flatten()(_)
-        outputs = Dense(8, activation='relu')(outputs)
+        outputs = Dense(10*8, activation='relu')(outputs)
+        outputs = Reshape((10, 8), input_shape=(80, ))(outputs)
 
         return Model(inputs=inputs, outputs=outputs)
-
-    def train_condition_model(self, make_condition_model):
-
-        #intput = Input(shape=(self.emg_size, ))
-        model = Sequential()
-        model.add(make_condition_model)
-
 
     def train(self, net_condition):
         i = 0
 
         condition_output = net_condition(self.image_input)
-        train_y = Input(shape=(self.emg_size, ))
+        train_y = Input(shape=self.emg_size, )
 
         estimate_net_c = Model(inputs=[self.image_input], outputs=[condition_output], name='estimate_net_c')
 
@@ -110,8 +103,9 @@ class MYO_GAN():
 
             loss = estimate_net_c.train_on_batch(images, emg_data)
 
-            print("%d [loss: %f]" % (loss))
+            print("%d [loss: %f]" % (i, loss))
 
+            i += 1
 
 if __name__ =='__main__':
     myo_gan = MYO_GAN()
