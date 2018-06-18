@@ -37,6 +37,8 @@ Discriminator
 
 '''
 
+num_classes = 9
+
 class Model:
     def __init__(self, mode='train', batch_size=1, labels=9, learning_rate=0.1, is_real_image=False):
         self.mode = mode
@@ -62,7 +64,7 @@ class Model:
             outputs = tflayers.fully_connected(inputs=outputs, num_outputs=80)
 
             # 80을 Generator의 입력으로 쓰고, Labeling을 통한 학습을 위해 Label 개수에 맞춘 출력을 하나 더 놓음
-            if self.mode == 'train':
+            if self.mode == 'train' or self.mode == 'myo-lstm-test':
                 return outputs
             elif self.mode == 'pretrain':
                 print(outputs.shape)
@@ -300,6 +302,116 @@ class Model:
 
         return net
 
+    def cond_maker(self, input, reuse=False):
+        temp_len = 30
+
+        net = input
+        net = tf.reshape(net, [-1, temp_len*16])
+        print(net)          # Should be [?, 30 x 16]
+
+        with tf.variable_scope("cond_maker", reuse=reuse):
+            with slim.arg_scope([slim.fully_connected], activation_fn=tf.nn.relu, normalizer_fn=slim.batch_norm,
+                                weights_initializer=tflayers.xavier_initializer()):
+                if self.mode == 'myo-lstm-test':
+                    net = slim.fully_connected(net, num_outputs=temp_len*16)
+                    net = slim.fully_connected(net, num_outputs=temp_len*12)
+                    net = slim.fully_connected(net, num_outputs=temp_len*8)
+                    net = slim.fully_connected(net, num_outputs=temp_len*4)
+                    net = slim.fully_connected(net, num_outputs=80)
+                elif self.mode == 'dual-learning':
+                    net = slim.fully_connected(net, num_outputs=256 * 2)
+                    net = slim.fully_connected(net, num_outputs=256 * 4)
+                    net = slim.fully_connected(net, num_outputs=256 * 8)
+                    net = slim.fully_connected(net, num_outputs=256 * 4)
+                    net = slim.fully_connected(net, num_outputs=256 * 2)
+                    net = slim.fully_connected(net, num_outputs=256)
+
+        print(net.shape)
+        return net
+
+    def myo_reconstructor(self, input, reuse=False):
+        # (8, 80) -> (8, 300, 16)
+        # net = tf.reshape(input, [-1, 80])
+
+        # [?, 256] -> [?, 30 x 16]
+
+        temp_len = 30
+
+        net = input
+        print(net)
+
+        with tf.variable_scope("myo_reconstructor", reuse=reuse):
+            with slim.arg_scope([slim.fully_connected], activation_fn=tf.nn.relu, normalizer_fn=slim.batch_norm,
+                                     weights_initializer=tflayers.xavier_initializer()):
+                if self.mode == 'myo-lstm-test':
+                    net = slim.fully_connected(net, num_outputs=temp_len)
+                    net = slim.fully_connected(net, num_outputs=temp_len*2)
+                    net = slim.fully_connected(net, num_outputs=temp_len*4)
+                    net = slim.fully_connected(net, num_outputs=temp_len*8)
+                    net = slim.fully_connected(net, num_outputs=temp_len*16)
+                elif self.mode == 'dual-learning':
+                    net = slim.fully_connected(net, num_outputs=30 * 16 * 1)
+                    net = slim.fully_connected(net, num_outputs=30 * 16 * 2)
+                    net = slim.fully_connected(net, num_outputs=30 * 16 * 4)
+                    net = slim.fully_connected(net, num_outputs=30 * 16 * 8)
+                    net = slim.fully_connected(net, num_outputs=30 * 16 * 4)
+                    net = slim.fully_connected(net, num_outputs=30 * 16 * 2)
+                    net = slim.fully_connected(net, num_outputs=30 * 16 * 1)
+
+        print(net.shape)
+        return net
+        # net = slim.fully_connected(net)
+
+    def classifier(self, input):
+        print(input.shape)
+        net = tflayers.fully_connected(input, num_outputs=128, activation_fn=tf.nn.relu)
+        print(net.shape)
+        net = tflayers.fully_connected(net, num_outputs=256, activation_fn=tf.nn.relu)
+        print(net.shape)
+        net = tflayers.fully_connected(net, num_outputs=128, activation_fn=tf.nn.relu)
+        print(net.shape)
+        net = tflayers.fully_connected(net, num_outputs=num_classes, activation_fn=tf.nn.relu)
+        print(net.shape)
+
+        # net = tf.reshape(net, [-1, 1, 9])
+
+        return net
+
+    def recons(self, input, reuse=False):
+        net = input
+        print(net)
+
+        with tf.variable_scope("recons", reuse=reuse):
+            with slim.arg_scope([slim.conv2d], kernel_size=3, stride=2,
+                                weights_initializer=tf.glorot_normal_initializer()):
+                with slim.arg_scope([slim.batch_norm], activation_fn=leaky_relu, is_training=(self.mode == 'train')):
+                    net = slim.conv2d(net, num_outputs=128)  # 64 x 64
+                    net = slim.batch_norm(net)
+                    print(net)
+                    net = slim.conv2d(net, num_outputs=256)  # 32 x 32
+                    net = slim.batch_norm(net)
+                    print(net)
+                    net = slim.conv2d(net, num_outputs=128)  # 16 x 16
+                    net = slim.batch_norm(net)
+                    print(net)
+                    net = slim.conv2d(net, num_outputs=64)  # 8 x 8
+                    net = slim.batch_norm(net)
+                    print(net)
+                    net = slim.conv2d(net, num_outputs=32)  # 4 x 4
+                    net = slim.batch_norm(net)
+                    print(net)
+
+            # LeakyReLU -> Sigmoid
+            # net = slim.conv2d(net, num_outputs=1, kernel_size=4, stride=1, activation_fn=leaky_relu,
+            #                   weights_initializer=tflayers.xavier_initializer())
+            # print(net)
+            net = slim.flatten(net)
+            net = slim.fully_connected(net, num_outputs=8,
+                                       weights_initializer=tf.glorot_normal_initializer())
+            print(net)
+
+        return net
+
     def build(self):
 
         if self.is_real_image:
@@ -307,7 +419,9 @@ class Model:
         else:
             self.real_image = tf.placeholder(tf.float32, [None, 128, 128, 1])
 
-        self.emg_data = tf.placeholder(tf.float32, [None, 300, 16])
+        # self.emg_data = tf.placeholder(tf.float32, [None, 30, 16])
+        self.emg_data = tf.placeholder(tf.float32, [None, 8])
+        self.image_flatten = tf.placeholder(tf.float32, [None, 16*16])
         # self.z = tf.placeholder(tf.float32, [None, 20])
         self.z = tf.placeholder(tf.float32, [None, 1000])
         # self.c = tf.placeholder(tf.float32, [None, 20])
@@ -332,18 +446,66 @@ class Model:
             self.d_optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.d_loss)
             self.g_optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.g_loss)
 
+        elif self.mode == 'rectest':
+            self.re = self.recons(self.real_image)
+            self.rectest_loss = tf.reduce_mean(tf.square(self.emg_data - self.re))
+            self.re_optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.rectest_loss)
+
         elif self.mode == 'pretrain':
             print('Before one-hot', self.y_label.shape)
             self.y_onehot = tf.one_hot(self.y_label, self.label_num)
             print('After one-hot :', self.y_onehot)
 
-            self.lstm_logits = self.lstm(self.emg_data)
-            self.lstm_prediction = tf.argmax(self.lstm_logits, 1)
-            print('lstm_logits :', self.lstm_logits.shape)
-            self.lstm_loss = tf.losses.softmax_cross_entropy(self.y_onehot, self.lstm_logits)
-            # self.lstm_prediction = tf.one_hot(self.lstm_logits, self.label_num)
-            # self.lstm_prediction = self.lstm_logits
-            print('lstm_prediction :', self.lstm_prediction.shape)
-            self.lstm_accuracy = tf.reduce_mean(tf.cast(tf.equal(self.lstm_prediction, self.y_label), tf.float32))
+            self.class_logits = self.classifier(self.emg_data)
+            self.class_prediction = tf.argmax(self.class_logits, 1)
+            print('class logits :', self.class_logits.shape)
+            self.class_loss = tf.losses.softmax_cross_entropy(self.y_onehot, self.class_logits)
+            self.class_acccuracy = tf.reduce_mean(tf.cast(tf.equal(self.class_prediction, self.y_label), tf.float32))
 
+            self.class_trainer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate).minimize(self.class_loss)
+
+            # self.lstm_logits = self.lstm(self.emg_data)
+            # self.lstm_prediction = tf.argmax(self.lstm_logits, 1)
+            # print('lstm_logits :', self.lstm_logits.shape)
+            # self.lstm_loss = tf.losses.softmax_cross_entropy(self.y_onehot, self.lstm_logits)
+            # # self.lstm_prediction = tf.one_hot(self.lstm_logits, self.label_num)
+            # # self.lstm_prediction = self.lstm_logits
+            # print('lstm_prediction :', self.lstm_prediction.shape)
+            # self.lstm_accuracy = tf.reduce_mean(tf.cast(tf.equal(self.lstm_prediction, self.y_label), tf.float32))
+
+            # self.lstm_trainer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.lstm_loss)
+
+        elif self.mode == 'myo-lstm-test':
+            self.x = slim.flatten(self.emg_data)
+            self.fx = self.cond_maker(self.x)
+            self.gfx = self.myo_reconstructor(self.fx)
+            # self.flatten_gfx = tf.reshape(self.gfx, [-1, 30, 16])
+            # self.fgfx = self.lstm(self.flatten_gfx, reuse=True)
+            self.fgfx = self.cond_maker(self.gfx, reuse=True)
+
+            print('flatter gfx :', self.gfx)
+
+            self.lstm_loss = tf.reduce_mean(tf.losses.mean_squared_error(labels=self.x, predictions=self.gfx))
+            self.recon_loss = tf.reduce_mean(tf.losses.mean_squared_error(labels=self.fx, predictions=self.fgfx))
+            # self.total_loss = self.lstm_loss + self.recon_loss
+            # self.lstm_trainer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.total_loss)
             self.lstm_trainer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.lstm_loss)
+            self.recon_trainer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.recon_loss)
+
+        elif self.mode == 'dual-learning':
+            self.x = slim.flatten(self.emg_data)
+            self.y = self.image_flatten
+
+            self.a_fx = self.cond_maker(self.x)
+            self.a_gfx = self.myo_reconstructor(self.a_fx)
+
+            self.a_loss = tf.reduce_mean(tf.losses.mean_squared_error(labels=self.x, predictions=self.a_gfx))
+
+            self.b_gy = self.myo_reconstructor(self.y, reuse=True)
+            self.b_fgy = self.cond_maker(self.b_gy, reuse=True)
+
+            self.b_loss = tf.reduce_mean(tf.losses.mean_squared_error(labels=self.y, predictions=self.b_fgy))
+
+            self.a_trainer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.a_loss)
+            self.b_trainer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.b_loss)
+            pass
