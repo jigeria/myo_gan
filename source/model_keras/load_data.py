@@ -1,11 +1,6 @@
 '''
-<<<<<<< HEAD
         Author          : MagmaTart / jigeria
         Last Modified   : 06/17/2018
-=======
-        Author          : MagmaTart
-        Last Modified   : 05/16/2018
->>>>>>> a94da23a14f50c70778827e2c4f4372f011ca31d
 '''
 
 import pandas as pd
@@ -14,161 +9,9 @@ import cv2
 
 import os
 
-<<<<<<< HEAD
-class DataLoader_Continous:
-    def __init__(self, data_path='./MYO_Dataset_label/', is_real_image=False, data_type=0): #data_type 0 is original data / 1 is calc_osclliation_degree / 2 is rms processing
-=======
-class DataLoader_discrete:
-    def __init__(self, data_path='./MYO_Dataset_label/', is_real_image=False, is_original_data=False): #data_type 0 is original data / 1 is calc_osclliation_degree
-        if data_path[-1] is not '/':
-            data_path = data_path + '/'
-        self.data_path = data_path
-
-        self.is_real_image = is_real_image
-        self.is_original_data = is_original_data
-
-        if is_real_image:
-            self.emg_file_index = 1
-            self.image_dir_index = 1
-        else:
-            self.emg_file_index = 1
-            self.image_dir_index = 1
-
-        self.emg_index = 0
-        self.image_index = 0
-
-        number_of_files = len(os.listdir(self.data_path))
-        assert number_of_files % 2 == 0, "Directory count and CSV files count are not matching"
-        self.data_files_count = int(number_of_files / 2)
-
-        self.image_dir_file_list = []
-        self.image_file_names = []
-        self.image_file_labels = []
-
-        self.set_new_image_directory(self.image_dir_index)
-
-        print(self.data_files_count)
-
-        # Property : All images count (All Data count)
-
-    def set_new_image_directory(self, image_dir_index):
-        image_dir_path = self.data_path + str(image_dir_index) + '/'
-        print(image_dir_index)
-
-        if self.is_real_image:
-            self.image_dir_file_list = [name for name in os.listdir(image_dir_path) if 'real' in name]
-        else:
-            self.image_dir_file_list = [name for name in os.listdir(image_dir_path) if 'edge' in name]
-
-        self.image_file_names = []
-        self.image_file_labels = []
-
-        # print(self.image_dir_file_list)
-
-        for i in range(len(self.image_dir_file_list)):
-            self.image_file_names.append(self.image_dir_file_list[i][:-4].split('-')[0] + '-' +
-                                         self.image_dir_file_list[i][:-4].split('-')[1])
-            self.image_file_labels.append(int(self.image_dir_file_list[i][:-4].split('-')[2]))
-
-        # print(self.image_file_names)
-        # print(self.image_file_labels)
-
-    def load_emg_data(self):
-        emg_length = 40     # 0.2 sec
-
-        csv_file = np.array(pd.read_csv(self.data_path + str(self.emg_file_index) + '.csv', sep=',').values.tolist())
-
-        if csv_file.shape[0] - self.emg_index < emg_length:
-            emg_data_a = csv_file[self.emg_index:, 1:]
-            remained_length = emg_length - (csv_file.shape[0] - self.emg_index)
-            self.emg_file_index = (self.emg_file_index % self.data_files_count) + 1
-            csv_file = np.array(pd.read_csv(self.data_path + str(self.emg_file_index) + '.csv', sep=',').values.tolist())
-            emg_data_b = csv_file[0:remained_length, 1:]
-            self.emg_index = remained_length
-            emg_data = np.append(emg_data_a, emg_data_b, axis=0)
-        else:
-            emg_data = csv_file[self.emg_index:self.emg_index + emg_length, 1:]
-            self.emg_index += emg_length
-
-        # 같은 Timestamp끼리 차의 평균 계산
-
-        if self.is_original_data:
-            return emg_data
-        else:
-            emg_data = self.calc_osclliation_degree(emg_data)
-            max = sorted(emg_data)[-1]
-            emg_data = emg_data / max
-
-            return emg_data
-
-    def calc_osclliation_degree(self, emg_data):
-        TAG = 'calc_osclliation_degree >'
-        osc = []
-        total = 0
-
-        # print(TAG, len(emg_data))
-
-        for k in range(8):
-            for i in range(0, len(emg_data), 2):
-                if emg_data[i][k] > 0 and emg_data[i+1][k] > 0:
-                    total += emg_data[i][k] + emg_data[i+1][k]
-                elif emg_data[i][k] < 0 and emg_data[i+1][k] < 0:
-                    total += emg_data[i][k] + emg_data[i+1][k]
-                else:
-                    # print(emg_data[i][k], emg_data[i+1][k], abs(emg_data[i][k] - emg_data[i+1][k]))
-                    total += abs(emg_data[i][k] - emg_data[i+1][k])
-            osc.append(total / int(len(emg_data)/2))
-            total = 0
-
-        return np.array(osc, dtype=np.float32)
-
-    def load_image(self):
-        if self.is_real_image:
-            image_name = 'hand-real' + str(self.image_index)
-            image_index = self.image_file_names.index(image_name)
-            label = self.image_file_labels[image_index]
-            image = cv2.imread(self.data_path + str(self.image_dir_index) + '/' + image_name + '-' + str(label) + '.png')
-            image = np.reshape(image, (128, 128, 3))
-
-        else:
-            image_name = 'hand-edge' + str(self.image_index)
-            image_index = self.image_file_names.index(image_name)
-            label = self.image_file_labels[image_index]
-            image = cv2.imread(self.data_path + str(self.image_dir_index) + '/' + image_name + '-' + str(label) + '.png',
-                               cv2.IMREAD_GRAYSCALE)
-            image = np.reshape(image, (128, 128, 1))
-
-        self.image_index += 1
-
-        if self.image_index >= len(self.image_dir_file_list):
-            self.image_index = 0
-            self.image_dir_index = (self.image_dir_index % self.data_files_count) + 1
-            self.set_new_image_directory(self.image_dir_index)
-
-        return image, label
-
-    def get_emg_datas(self, num):
-        emg_data = []
-
-        for i in range(num):
-            emg_data.append(self.load_emg_data())
-
-        return np.array(emg_data, dtype=np.float32)
-
-    def get_images(self, num):
-        images = []
-        labels = []
-
-        for i in range(num):
-            image, label = self.load_image()
-            images.append(image)
-            labels.append(label)
-
-        return np.array(images), np.array(labels)
 
 class DataLoader_Continous:
     def __init__(self, data_path='./MYO_Dataset_label/', is_real_image=False, data_type=0): #data_type 0 is original data / 1 is calc_osclliation_degree
->>>>>>> a94da23a14f50c70778827e2c4f4372f011ca31d
         if data_path[-1] is not '/':
             data_path = data_path + '/'
         self.data_path = data_path
@@ -246,10 +89,6 @@ class DataLoader_Continous:
 
 
         if self.data_type == 0:
-<<<<<<< HEAD
-=======
-
->>>>>>> a94da23a14f50c70778827e2c4f4372f011ca31d
             return emg_data
 
         elif self.data_type == 1:
@@ -259,7 +98,6 @@ class DataLoader_Continous:
 
             return emg_data
 
-<<<<<<< HEAD
         elif self.data_type == 2:
             emg_data = self.RMS_analyzer(emg_data)
             emg_data = emg_data.flatten()
@@ -293,10 +131,6 @@ class DataLoader_Continous:
         rms = np.array(rms, dtype=np.float32)
         return rms
 
-=======
-        return emg_data
-
->>>>>>> a94da23a14f50c70778827e2c4f4372f011ca31d
     def calc_osclliation_degree(self, emg_data):
         TAG = 'calc_osclliation_degree >'
         osc = []
@@ -467,11 +301,7 @@ for i in range(20):
 #     print(i, images.shape)
 
 
-<<<<<<< HEAD
 loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False, data_type=2)
-=======
-loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False, data_type=0)
->>>>>>> a94da23a14f50c70778827e2c4f4372f011ca31d
 emg = loader.get_emg_datas(10)
 
 print(emg)
