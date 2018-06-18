@@ -99,6 +99,9 @@ class DataLoader_Continous:
 
         elif self.data_type == 2:
             emg_data = self.RMS_analyzer(emg_data)
+            emg_data = emg_data.flatten()
+            #print(emg_data.shape)
+            #print(emg_data)
 
             return emg_data
 

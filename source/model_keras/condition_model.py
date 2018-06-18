@@ -19,7 +19,7 @@ from keras.activations import relu
 from keras.initializers import RandomNormal
 from keras.datasets import mnist
 from urllib.request import urlretrieve
-from keras.optimizers import RMSprop, SGD, Adam, sgd    
+from keras.optimizers import RMSprop, SGD, Adam, sgd
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
@@ -44,12 +44,12 @@ class MYO_GAN():
         self.input_size = 100
         self.image_channel = 1
         self.learning_rate = 2e-4
-        self.epoch = 1000
+        self.epoch = 100
         self.batch_size = 16
-        self.emg_size = (10, 8)
+        self.emg_size = (80,)
 
         self.image_input = Input(shape=(self.image_size, self.image_size, self.image_channel))
-        self.emg_input = Input(shape=self.emg_size, )
+        self.emg_input = Input(shape=self.emg_size)
 
         self.adam = Adam(lr=0.0002, beta_1=0.5, beta_2=0.999)  # as described in appendix A of DeepMind's AC-GAN paper
 
@@ -81,38 +81,54 @@ class MYO_GAN():
             _)
 
         outputs = Flatten()(_)
-        outputs = Dense(10*8, activation='relu')(outputs)
-        outputs = Reshape((10, 8), input_shape=(80, ))(outputs)
+        outputs = Dense(80, activation='relu')(outputs)
+        #outputs = Reshape((10, 8), input_shape=(80, ))(outputs)
 
         return Model(inputs=inputs, outputs=outputs)
 
-    def train(self, net_condition):
+    def train(self):
         i = 0
 
-        condition_output = net_condition(self.image_input)
-        train_y = Input(shape=self.emg_size, )
+        self.net_condition = self.make_condition_model()
+        self.net_condition.summary()
+        condition_output = self.net_condition(self.image_input)
 
-        estimate_net_c = Model(inputs=[self.image_input], outputs=[condition_output], name='estimate_net_c')
+        self.estimate_net_c = Model(inputs=[self.image_input], outputs=[condition_output], name='estimate_net_c')
+        self.estimate_net_c.summary()
 
-        net_condition.compile(loss='mean_squared_error', optimizer=self.adam)
-        estimate_net_c.compile(loss='mean_squared_error', optimizer=self.adam)
+        self.net_condition.compile(loss='mean_squared_error', optimizer=self.adam)
+        self.estimate_net_c.compile(loss='mean_squared_error', optimizer=self.adam)
 
         while i <= self.epoch:
-            images = self.loader.get_images(self.batch_size)
+            images = self.loader.get_images(self.batch_size) / 127.5
             emg_data = self.loader.get_emg_datas(self.batch_size)
 
-            loss = estimate_net_c.train_on_batch(images, emg_data)
+            loss = self.estimate_net_c.train_on_batch(images, emg_data)
 
             print("%d [loss: %f]" % (i, loss))
 
             i += 1
 
+    def save_model(self):
+        #self.net_condition.save_weights("./condition_model_save/condition_model.h5")
+        #self.estimate_net_c.save_weights("./condition_model_save/estimate_model.h5")
+
+        self.net_condition.save_weights("./condition_model_save/condition_model.h5")
+        self.estimate_net_c.save_weights("./condition_model_save/estimate_model.h5")
+
+        condition_model = self.net_condition.to_json()
+        with open("./condition_model_save/condition_model.json", "w") as json_file:
+            json_file.write(condition_model)
+
+        estimate_model = self.estimate_net_c.to_json()
+        with open("./condition_model_save/estimate_model.json", "w") as json_file:
+            json_file.write(estimate_model)
+
+        print("Saved model to disk")
+
 if __name__ =='__main__':
     myo_gan = MYO_GAN()
-
-    make_condition = myo_gan.make_condition_model()
-    make_condition.summary()
-
-    myo_gan.train(make_condition)
+    myo_gan.train()
+    #myo_gan.save_model()
 
 
