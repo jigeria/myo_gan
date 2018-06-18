@@ -9,7 +9,8 @@ import cv2
 
 import os
 
-
+class DataLoader_Continous:
+    def __init__(self, data_path='./MYO_Dataset_label/', is_real_image=False, data_type=0): #data_type 0 is original data / 1 is calc_osclliation_degree / 2 is rms processing
         if data_path[-1] is not '/':
             data_path = data_path + '/'
         self.data_path = data_path
@@ -95,7 +96,6 @@ import os
             emg_data = emg_data / max
 
             return emg_data
-
 
         elif self.data_type == 2:
             emg_data = self.RMS_analyzer(emg_data)
@@ -298,6 +298,7 @@ for i in range(20):
 # for i in range(500):
 #     images = loader.get_images(7)
 #     print(i, images.shape)
+
 
 loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False, data_type=2)
 emg = loader.get_emg_datas(10)
