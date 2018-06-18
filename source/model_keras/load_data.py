@@ -9,9 +9,8 @@ import cv2
 
 import os
 
-
 class DataLoader_Continous:
-    def __init__(self, data_path='./MYO_Dataset_label/', is_real_image=False, data_type=0): #data_type 0 is original data / 1 is calc_osclliation_degree
+    def __init__(self, data_path='./MYO_Dataset_label/', is_real_image=False, data_type=0): #data_type 0 is original data / 1 is calc_osclliation_degree / 2 is rms processing
         if data_path[-1] is not '/':
             data_path = data_path + '/'
         self.data_path = data_path
