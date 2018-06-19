@@ -48,7 +48,7 @@ def get_hand(image):
         for j in range(85, 128):
             image[i][j] = [255, 255, 255]
 
-for filenum in range(21, 22):
+for filenum in range(25, 26):
     thick = 5
     fps = 30
 
