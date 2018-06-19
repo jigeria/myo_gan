@@ -1,7 +1,7 @@
 
 '''
         Author          : MagmaTart
-        Last Modified   : 05/16/2018
+        Last Modified   : 06/18/2018
 '''
 
 import pandas as pd
@@ -11,13 +11,12 @@ import cv2
 import os
 
 class DataLoader_discrete:
-    def __init__(self, data_path='./MYO_Dataset_label/', is_real_image=False, is_original_data=False): #data_type 0 is original data / 1 is calc_osclliation_degree
+    def __init__(self, data_path='./MYO_Dataset_label/', is_real_image=False):
         if data_path[-1] is not '/':
             data_path = data_path + '/'
         self.data_path = data_path
 
         self.is_real_image = is_real_image
-        self.is_original_data = is_original_data
 
         if is_real_image:
             self.emg_file_index = 1
@@ -66,7 +65,7 @@ class DataLoader_discrete:
         # print(self.image_file_labels)
 
     def load_emg_data(self):
-        emg_length = 40     # 0.2 sec
+        emg_length = 600     # 0.2 sec
 
         csv_file = np.array(pd.read_csv(self.data_path + str(self.emg_file_index) + '.csv', sep=',').values.tolist())
 
@@ -82,16 +81,31 @@ class DataLoader_discrete:
             emg_data = csv_file[self.emg_index:self.emg_index + emg_length, 1:]
             self.emg_index += emg_length
 
-        # 같은 Timestamp끼리 차의 평균 계산
+        emg_data = self.RMS_analyzer(emg_data)
+        return emg_data
 
-        if self.is_original_data:
-            return emg_data
-        else:
-            emg_data = self.calc_osclliation_degree(emg_data)
-            max = sorted(emg_data)[-1]
-            emg_data = emg_data / max
+    def RMS_analyzer(self, emg_data):
+        # print(emg_data.shape)
+        rms = []
+        total = 0
 
-            return emg_data
+        for i in range(emg_data.shape[1]):
+            for k in range(emg_data.shape[0]):
+                emg_data[k][i] *= emg_data[k][i]
+
+        for k in range(0, emg_data.shape[0], 2):
+            lst = []
+            for i in range(emg_data.shape[1]):
+                lst.append( (emg_data[k][i] + emg_data[k+1][i]) / 2.0 )
+            rms.append(lst)
+
+        for i in range(len(rms[0])):
+            for k in range(len(rms)):
+                rms[k][i] = rms[k][i] ** 0.5
+
+        # (300, 8)
+        rms = np.array(rms, dtype=np.float32)
+        return rms
 
     def calc_osclliation_degree(self, emg_data):
         TAG = 'calc_osclliation_degree >'
@@ -159,14 +173,13 @@ class DataLoader_discrete:
         return np.array(images), np.array(labels)
 
 class DataLoader_Continous:
-    def __init__(self, data_path='./MYO_Dataset_label/', is_real_image=False, data_type=0): #data_type 0 is original data / 1 is calc_osclliation_degree
+    def __init__(self, data_path='./MYO_Dataset_label/', emg_length=600, is_real_image=False):
         if data_path[-1] is not '/':
             data_path = data_path + '/'
         self.data_path = data_path
 
+        self.emg_length = emg_length
         self.is_real_image = is_real_image
-
-        self.data_type = data_type
 
         if is_real_image:
             self.emg_file_index = 1
@@ -176,7 +189,7 @@ class DataLoader_Continous:
             self.image_dir_index = 1
 
         self.emg_index = 0
-        self.image_index = 0
+        self.image_index = 10
 
         number_of_files = len(os.listdir(self.data_path))
         assert number_of_files % 2 == 0, "Directory count and CSV files count are not matching"
@@ -217,37 +230,48 @@ class DataLoader_Continous:
         #     self.image_file_labels.append(int(self.image_dir_file_list[i][:-4].split('-')[2]))
 
     def load_emg_data(self):
-        emg_length = 20     # 0.1 sec
-
         csv_file = np.array(pd.read_csv(self.data_path + str(self.emg_file_index) + '.csv', sep=',').values.tolist())
 
-        if csv_file.shape[0] - self.emg_index < emg_length:
+        if csv_file.shape[0] - self.emg_index < self.emg_length:
             emg_data_a = csv_file[self.emg_index:, 1:]
-            remained_length = emg_length - (csv_file.shape[0] - self.emg_index)
+            remained_length = self.emg_length - (csv_file.shape[0] - self.emg_index)
             self.emg_file_index = (self.emg_file_index % self.data_files_count) + 1
             csv_file = np.array(pd.read_csv(self.data_path + str(self.emg_file_index) + '.csv', sep=',').values.tolist())
             emg_data_b = csv_file[0:remained_length, 1:]
             self.emg_index = remained_length
             emg_data = np.append(emg_data_a, emg_data_b, axis=0)
         else:
-            emg_data = csv_file[self.emg_index:self.emg_index + emg_length, 1:]
-            self.emg_index += emg_length
+            emg_data = csv_file[self.emg_index:self.emg_index + self.emg_length, 1:]
+            self.emg_index += 20
+            # self.emg_index += self.emg_length
 
         # 같은 Timestamp끼리 차의 평균 계산
 
-
-        if self.data_type == 0:
-
-            return emg_data
-
-        elif self.data_type == 1:
-            emg_data = self.calc_osclliation_degree(emg_data)
-            max = sorted(emg_data)[-1]
-            emg_data = emg_data / max
-
-            return emg_data
-
+        emg_data = self.RMS_analyzer(emg_data)
         return emg_data
+
+    def RMS_analyzer(self, emg_data):
+        # print(emg_data.shape)
+        rms = []
+        total = 0
+
+        for i in range(emg_data.shape[1]):
+            for k in range(emg_data.shape[0]):
+                emg_data[k][i] *= emg_data[k][i]
+
+        for k in range(0, emg_data.shape[0], 2):
+            lst = []
+            for i in range(emg_data.shape[1]):
+                lst.append( (emg_data[k][i] + emg_data[k+1][i]) / 2.0 )
+            rms.append(lst)
+
+        for i in range(len(rms[0])):
+            for k in range(len(rms)):
+                rms[k][i] = rms[k][i] ** 0.5
+
+        # (300, 8)
+        rms = np.array(rms, dtype=np.float32)
+        return rms
 
     def calc_osclliation_degree(self, emg_data):
         TAG = 'calc_osclliation_degree >'
@@ -317,16 +341,10 @@ class DataLoader_Continous:
     def get_emg_datas(self, num):
         emg_data = []
 
-        emg_size_per_second = 20
-        emg_data_channel = 8
-
         for i in range(num):
             emg_data.append(self.load_emg_data())
 
-        emg_data = np.array(emg_data, dtype=np.float32)
-        #emg_data = emg_data.reshape(num, emg_size_per_second*emg_data_channel)
-
-        return emg_data
+        return np.array(emg_data, dtype=np.float32)
 
     def get_images(self, num):
         images = []
@@ -362,7 +380,21 @@ def vis(emg):
     # print(npa)
 
 # loader = DataLoader_Continous(data_path='./myo_test_dataset/')
-# loader = DataLoader_Continous(data_path='./dataset_0516/')
+# loader = DataLoader_Continous(data_path='./dataset_0516/', emg_length=200)
+#
+# while True:
+#     emg = loader.get_emg_datas(90)
+#     print(emg)
+#     print(emg.shape)
+#     image = loader.get_images(90)
+#     cv2.imshow('emg', image[0])
+#     cv2.waitKey(1000000)
+#     cv2.destroyAllWindows()
+
+# print(emg)
+# cv2.imshow('emg', image)
+# cv2.waitKey(50000)
+# cv2.destroyAllWindows()
 
 # print('Paper')
 #
@@ -423,4 +455,5 @@ emg = loader.get_emg_datas(10)
 
 print(emg)
 print(emg.shape)
+
 
