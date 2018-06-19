@@ -30,7 +30,7 @@ class DataLoader_Continous:
             self.image_dir_index = 1
 
         self.emg_index = 0
-        self.image_index = 0
+        self.image_index = 10
 
         number_of_files = len(os.listdir(self.data_path))
         assert number_of_files % 2 == 0, "Directory count and CSV files count are not matching"
@@ -253,63 +253,6 @@ def vis(emg):
     # max = sorted(lst)[-1]
     # npa = np.array(lst, dtype=np.float32) / max
     # print(npa)
-
-# loader = DataLoader_Continous(data_path='./myo_test_dataset/')
-# loader = DataLoader_Continous(data_path='./dataset_0516/')
-
-# print('Paper')
-#
-# emg = loader.get_emg_datas(15)
-# vis(emg)
-#
-# print('Scissor')
-#
-# emg = loader.get_emg_datas(15)
-# # print(emg)
-# vis(emg)
-#
-# print('Small scissor')
-#
-# emg = loader.get_emg_datas(15)
-# # print(emg)
-# vis(emg)
-#
-# print('Fist')
-
-'''
-for i in range(20):
-    emg = loader.get_emg_datas(5)
-
-    # if i == 0 or i == 1:
-    print('Data number :', i)
-    print(emg)
-    # vis(emg)
-'''
-
-# emg = loader.load_emg_data()
-# image, label = loader.load_image()
-
-# print(emg)
-
-# cv2.imshow('test', image)
-# cv2.waitKey(100000)
-# cv2.destroyAllWindows()
-
-# emg = loader.load_emg_data()
-# image, label = loader.load_image()
-
-# print(emg)
-# print(label)
-
-# cv2.imshow('test', image)
-# cv2.waitKey(100000)
-# cv2.destroyAllWindows()
-#
-# emg = loader.get_emg_datas(7)
-#
-# for i in range(500):
-#     images = loader.get_images(7)
-#     print(i, images.shape)
 
 
 loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False, data_type=2, emg_length=600, is_flatten=False)
