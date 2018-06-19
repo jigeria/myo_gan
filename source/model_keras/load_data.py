@@ -21,7 +21,6 @@ class DataLoader_Continous:
         self.data_type = data_type
         self.emg_length = emg_length
 
-
         if is_real_image:
             self.emg_file_index = 1
             self.image_dir_index = 1
