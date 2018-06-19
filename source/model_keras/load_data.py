@@ -1,6 +1,6 @@
 '''
         Author          : MagmaTart / jigeria
-        Last Modified   : 06/17/2018
+        Last Modified   : 06/19/2018
 '''
 
 import pandas as pd
@@ -9,15 +9,18 @@ import cv2
 
 import os
 
+
 class DataLoader_Continous:
-    def __init__(self, data_path='./MYO_Dataset_label/', is_real_image=False, data_type=0): #data_type 0 is original data / 1 is calc_osclliation_degree / 2 is rms processing
+    def __init__(self, data_path='./MYO_Dataset_label/', emg_length=600, is_real_image=False, data_type=0, is_flatten=False, ): #data_type 0 is original data / 1 is calc_osclliation_degree / 2 is rms processing
         if data_path[-1] is not '/':
             data_path = data_path + '/'
         self.data_path = data_path
 
         self.is_real_image = is_real_image
-
+        self.is_flatten = is_flatten
         self.data_type = data_type
+        self.emg_length = emg_length
+
 
         if is_real_image:
             self.emg_file_index = 1
@@ -68,26 +71,26 @@ class DataLoader_Continous:
         #     self.image_file_labels.append(int(self.image_dir_file_list[i][:-4].split('-')[2]))
 
     def load_emg_data(self):
-        emg_length = 20     # 0.1 sec
-
         csv_file = np.array(pd.read_csv(self.data_path + str(self.emg_file_index) + '.csv', sep=',').values.tolist())
 
-        if csv_file.shape[0] - self.emg_index < emg_length:
+        if csv_file.shape[0] - self.emg_index < self.emg_length:
             emg_data_a = csv_file[self.emg_index:, 1:]
-            remained_length = emg_length - (csv_file.shape[0] - self.emg_index)
+            remained_length = self.emg_length - (csv_file.shape[0] - self.emg_index)
             self.emg_file_index = (self.emg_file_index % self.data_files_count) + 1
-            csv_file = np.array(pd.read_csv(self.data_path + str(self.emg_file_index) + '.csv', sep=',').values.tolist())
+            csv_file = np.array(
+                pd.read_csv(self.data_path + str(self.emg_file_index) + '.csv', sep=',').values.tolist())
             emg_data_b = csv_file[0:remained_length, 1:]
             self.emg_index = remained_length
             emg_data = np.append(emg_data_a, emg_data_b, axis=0)
         else:
-            emg_data = csv_file[self.emg_index:self.emg_index + emg_length, 1:]
-            self.emg_index += emg_length
-
-        # 같은 Timestamp끼리 차의 평균 계산
-
+            emg_data = csv_file[self.emg_index:self.emg_index + self.emg_length, 1:]
+            self.emg_index += 20
+            # self.emg_index += self.emg_length
 
         if self.data_type == 0:
+            if self.is_flatten == True:
+                emg_data = emg_data.flatten()
+
             return emg_data
 
         elif self.data_type == 1:
@@ -95,15 +98,24 @@ class DataLoader_Continous:
             max = sorted(emg_data)[-1]
             emg_data = emg_data / max
 
+            if self.is_flatten == True:
+                emg_data = emg_data.flatten()
+
             return emg_data
 
         elif self.data_type == 2:
             emg_data = self.RMS_analyzer(emg_data)
-            emg_data = emg_data.flatten()
+
+            if self.is_flatten == True:
+                emg_data = emg_data.flatten()
+
             #print(emg_data.shape)
             #print(emg_data)
 
             return emg_data
+
+        if self.is_flatten == True:
+            emg_data = emg_data.flatten()
 
         return emg_data
 
@@ -300,7 +312,7 @@ for i in range(20):
 #     print(i, images.shape)
 
 
-loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False, data_type=2)
+loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False, data_type=2, emg_length=600, is_flatten=False)
 emg = loader.get_emg_datas(10)
 
 print(emg)
