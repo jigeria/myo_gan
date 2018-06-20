@@ -19,9 +19,9 @@ print(tf.__version__)
 mode = 'rectest'
 is_real_image = False
 
-loader = DataLoader_Continous(data_path='./dataset_0516/', is_real_image=is_real_image)
+loader = DataLoader_Continous(data_path='./dataset_0516/', emg_length=200, is_real_image=is_real_image)
 
-batch_size = 2
+batch_size = 64
 label_num = 9
 
 model = Model(mode=mode, batch_size=batch_size, labels=label_num, learning_rate=0.001, is_real_image=is_real_image)
@@ -66,20 +66,21 @@ if mode == 'pretrain':
 elif mode == 'rectest':
 
     for i in range(100001):
-        emgs = loader.get_emg_datas(32)
-        image = loader.get_images(32) / 255.0
-        _, loss = sess.run([model.re_optimizer, model.rectest_loss] ,feed_dict={model.emg_data:emgs, model.real_image:image})
-        print(i, loss)
+        emgs = loader.get_emg_datas(batch_size)
+        images = loader.get_images(batch_size)
 
-        emgs = loader.get_emg_datas(1)
-        image = loader.get_images(1) / 255.0
-        # print('IMAGE')
-        # print(image)
-        re = sess.run(model.re, feed_dict={model.real_image:image})
-        print('REAL')
+        for k in range(len(emgs)):
+            emgs[k] = normalize(emgs[k])
         print(emgs)
-        print("RECON")
-        print(re)
+
+        # _, loss, pred, acc = sess.run([model.trainer, model.loss, model.prediction, model.accuracy], feed_dict={model.emg_data:emgs, model.y_label:labels})
+        # print(i, loss)
+        # print(labels)
+        # print(pred)
+        # print(acc)
+
+        _, loss = sess.run([model.trainer, model.loss], feed_dict={model.emg_data: emgs, model.real_image: images})
+        print(i, loss)
 
 elif mode == 'data':
     # emgs = loader.get_emg_datas(batch_size)
