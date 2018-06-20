@@ -412,6 +412,29 @@ class Model:
 
         return net
 
+    def make_condition(self, image):
+        net = image
+        with tf.variable_scope('make_condition'):
+            # with tf.device('/gpu:0'):
+            # make 64 x 64
+            net = slim.conv2d(net, num_outputs=512, kernel_size=3, stride=2,
+                              activation_fn=tf.nn.relu, normalizer_fn=tflayers.batch_norm,
+                              weights_initializer=tf.random_normal_initializer(0, 0.02))
+            # make 32 x 32
+            net = slim.conv2d(net, num_outputs=512, kernel_size=3, stride=2,
+                              activation_fn=tf.nn.relu, normalizer_fn=tflayers.batch_norm,
+                              weights_initializer=tf.random_normal_initializer(0, 0.02))
+            # make 16 x 16
+            net = slim.conv2d(net, num_outputs=512, kernel_size=3, stride=2,
+                              activation_fn=tf.nn.relu, normalizer_fn=tflayers.batch_norm,
+                              weights_initializer=tf.random_normal_initializer(0, 0.02))
+            net = slim.flatten(net)
+            net = slim.fully_connected(net, num_outputs=800, activation_fn=tf.nn.relu, normalizer_fn=tflayers.batch_norm,
+                                       weights_initializer=tflayers.xavier_initializer())
+
+        return net
+
+
     def build(self):
 
         if self.is_real_image:
@@ -420,7 +443,8 @@ class Model:
             self.real_image = tf.placeholder(tf.float32, [None, 128, 128, 1])
 
         # self.emg_data = tf.placeholder(tf.float32, [None, 30, 16])
-        self.emg_data = tf.placeholder(tf.float32, [None, 8])
+        # self.emg_data = tf.placeholder(tf.float32, [None, 8])
+        self.emg_data = tf.placeholder(tf.float32, [None, 100, 8])
         self.image_flatten = tf.placeholder(tf.float32, [None, 16*16])
         # self.z = tf.placeholder(tf.float32, [None, 20])
         self.z = tf.placeholder(tf.float32, [None, 1000])
@@ -447,9 +471,10 @@ class Model:
             self.g_optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.g_loss)
 
         elif self.mode == 'rectest':
-            self.re = self.recons(self.real_image)
-            self.rectest_loss = tf.reduce_mean(tf.square(self.emg_data - self.re))
-            self.re_optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.rectest_loss)
+            emg_flatten = slim.flatten(self.emg_data)
+            self.recon = self.make_condition(self.real_image)
+            self.loss = tf.reduce_mean(tf.square(self.recon - emg_flatten))
+            self.trainer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.loss)
 
         elif self.mode == 'pretrain':
             print('Before one-hot', self.y_label.shape)
