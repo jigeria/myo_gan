@@ -42,8 +42,12 @@ class MYO_GAN():
         self.conv_init = RandomNormal(0, 0.02)
         self.gamma_init = RandomNormal(1., 0.02)
 
-        self.epoch = 30000
-        self.time_0 = time.time()
+        self.emg_length = 100  # 0.5s
+        self.emg_feature = 8
+        self.loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False, data_type=2, is_flatten=False, emg_length=self.emg_length)
+        self.adam = Adam(lr=0.0002, beta_1=0.5, beta_2=0.999)  # as described in appendix A of DeepMind's AC-GAN paper
+
+        self.epoch = 2
         self.batch_size = 16
 
         self.d_step = 1
@@ -53,37 +57,35 @@ class MYO_GAN():
         self.d_loss_real_history = []
         self.d_loss_fake_history = []
 
-        self.lstm_size = (20, 8)
-        self.noise_size = 20
+        self.lstm_size = ((int)(self.emg_length / 2), self.emg_feature)  # data_type = 2 -> (10, 8)  / 0 -> (20, 8)
+        self.lstm_output_size = 64
+        self.noise_size = (int)(100 - self.lstm_output_size)
         self.image_size = 128
         self.input_size = 100
         self.image_channel = 1
         self.learning_rate = 2e-4
-        self.loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False, data_type=0)
 
         self.lstm_input = Input(shape=self.lstm_size,)
-
-        #lstm_layer = LSTM(80, input_shape=(self.lstm_size, ), return_sequences=True)(self.lstm_input)
-        #print(lstm_layer)
-
-        self.discriminator_optim = sgd(lr=0.01, momentum=0.9, nesterov=True)
-        self.generator_optim = Adam(lr=1e-3)
-        adam = Adam(lr=0.0002, beta_1=0.5, beta_2=0.999)  # as described in appendix A of DeepMind's AC-GAN paper
-
-
-        print(self.lstm_input)
+        self.condition_intput = Input(shape=(self.lstm_output_size,))
         self.noise_input = Input(shape=(self.noise_size,))
+
         real_image = Input(shape=(self.image_size, self.image_size, self.image_channel))
 
+
+    def build_model(self):
+        self.lstm_model = self.load_lstm()
+        self.lstm_model.summary()
+
         self.net_g = self.generative_model()
-        fake_image = self.net_g([self.noise_input, self.lstm_input])
+        fake_image = self.net_g([self.noise_input, self.condition_intput])
         self.net_g.summary()
 
         self.net_d = self.discriminative_model()
         self.net_d.summary()
 
         combined_output = self.net_d(fake_image)
-        self.combined_model = Model(inputs=[self.noise_input, self.lstm_input], outputs=[combined_output], name='combined')
+        self.combined_model = Model(inputs=[self.noise_input, self.condition_intput], outputs=[combined_output], name='combined')
+
         '''
         net_g, net_d, combined_model = load_model()
 
@@ -92,20 +94,30 @@ class MYO_GAN():
 
         fake_image = net_g(self.noise_input)
         '''
-        self.net_g.compile(loss='binary_crossentropy', optimizer=adam)
-        self.net_d.compile(loss='binary_crossentropy', optimizer=adam)
+
+        self.net_g.compile(loss='binary_crossentropy', optimizer=self.adam)
+        self.net_d.compile(loss='binary_crossentropy', optimizer=self.adam)
         self.net_d.trainable = False
-        self.combined_model.compile(loss='binary_crossentropy', optimizer=adam)
+        self.combined_model.compile(loss='binary_crossentropy', optimizer=self.adam)
 
         self.combined_model.summary()
 
+    def load_lstm(self):
+
+        json_file = open('./model_load/myo_lstm_output/lstm_model_4000.json', 'r')
+        loaded_model_json = json_file.read()
+        json_file.close()
+        load_lstm_model = model_from_json(loaded_model_json)
+        # load weights into new model
+        load_lstm_model.load_weights("./model_load/myo_lstm_output/lstm_model_4000.h5")
+
+        print('load model')
+
+        return load_lstm_model
+
     def generative_model(self):
 
-        print(self.lstm_input)
-        lstm_layer = LSTM(80, input_shape=self.lstm_size,)(self.lstm_input)
-        print(lstm_layer)
-        concat = Concatenate(axis=-1)([lstm_layer, self.noise_input])
-        print(concat)
+        concat = Concatenate(axis=-1)([self.noise_input, self.condition_intput])
 
         _ = Dense(256, input_shape=(100,), activation='relu')(concat)
         _ = BatchNormalization(axis=1)(_, training=1)
@@ -135,7 +147,7 @@ class MYO_GAN():
         _ = Conv2D(filters=1, kernel_size=3, padding='same', input_shape=(128, 128, 256))(_)
         _ = Activation(activation='tanh')(_)
 
-        return Model(inputs=[self.noise_input, self.lstm_input], outputs=_)
+        return Model(inputs=[self.noise_input, self.condition_intput], outputs=_)
 
     def discriminative_model(self):
         _ = inputs = Input(shape=(self.image_size, self.image_size, self.image_channel))
@@ -196,10 +208,13 @@ class MYO_GAN():
         return [load_g_model, load_d_model, load_combined_model]
 
     def sample_generation(self):
-        for _ in range(num):
-            noise = np.random.normal(size=[num, self.noise_size])
-            gan_image = net_g.predict(noise)
-            cv2.imwrite('./model3_output/image/' + 'sample image' + str(_) + '.png', gan_image[_] * 127.5)
+        emg = self.loader.get_emg_datas(self.batch_size)
+
+        for _ in range(self.batch_size):
+            noise = np.random.normal(size=[self.batch_size, self.noise_size])
+            condition = self.lstm_model.predict(emg)
+            gan_image = self.net_g.predict(noise, condition)
+            cv2.imwrite('./model2_output/image/' + 'sample image' + str(_) + '.png', gan_image[_] * 127.5)
 
         print("generated image")
 
@@ -222,18 +237,46 @@ class MYO_GAN():
 
         print("Saved model to disk")
 
+    def show_history(self):
+        plt.figure(1, figsize=(16, 8))
+        plt.plot(self.d_loss_real_history)
+        plt.ylabel('d_loss_real')
+        plt.xlabel('epoch')
+        plt.legend(['train'], loc='upper left')
+
+        plt.savefig('./model2_output/image/d_loss_real_history.png')
+
+        plt.figure(2, figsize=(16, 8))
+        plt.plot(self.d_loss_fake_history)
+        plt.ylabel('d_loss_fake')
+        plt.xlabel('epoch')
+        plt.legend(['train'], loc='upper left')
+
+        plt.savefig('./model2_output/image/d_loss_fake_history.png')
+
+        plt.figure(3, figsize=(16, 8))
+        plt.plot(self.g_loss_history)
+        plt.ylabel('g_loss')
+        plt.xlabel('epoch')
+        plt.legend(['train'], loc='upper left')
+
+        plt.savefig('./model2_output/image/g_loss_history.png')
+
+        plt.show()
+
     def train(self):
         i = 0
 
         while i <= self.epoch:
-            # x_train = loader.get_emg_datas(batch_size)
             images = self.loader.get_images(self.batch_size)
             emg = self.loader.get_emg_datas(self.batch_size)
 
             for _ in range(self.d_step):
                 noise = np.random.normal(size=[self.batch_size, self.noise_size])
 
-                g_z = self.net_g.predict([noise, emg])
+                condition = self.lstm_model.predict_on_batch(emg)
+
+                g_z = self.net_g.predict([noise, condition])
 
                 d_loss_real = self.net_d.train_on_batch(images,
                                                         np.random.uniform(low=0.7, high=1.2, size=self.batch_size))
@@ -245,58 +288,28 @@ class MYO_GAN():
 
             for _ in range(self.g_step):
                 noise = np.random.normal(size=[self.batch_size, self.noise_size])
-                combined_loss = self.combined_model.train_on_batch([noise, emg], np.random.uniform(low=0.7, high=1.2,
+                combined_loss = self.combined_model.train_on_batch([noise, condition], np.random.uniform(low=0.7, high=1.2,
                                                                                             size=self.batch_size))
 
                 self.g_loss_history.append(combined_loss)
 
-            print("%d [D loss real: %f] [D loss fake: %f] [D loss: %f] [G loss: %f]" % (
-                i, d_loss_real, d_loss_fake, self.d_loss, combined_loss))
+            print("%d [D loss real: %f] [D loss fake: %f] [D loss: %f] [G loss: %f]" % (i, d_loss_real, d_loss_fake, self.d_loss, combined_loss))
 
             if i % 500 == 0:
-                gan_image = self.net_g.predict([noise, emg])
+                gan_image = self.net_g.predict([noise, condition])
                 print("gan imaga2 : ", gan_image[0].shape)
-                cv2.imwrite('./model3_output/image/' + 'fake_image' + str(i) + '.png', gan_image[0] * 127.5)
+                cv2.imwrite('./model2_output/image/' + 'fake_image' + str(i) + '.png', gan_image[0] * 127.5)
                 # cv2.imwrite('./output_image3/' + 'real_image'+ str(i) + '.png', images[0] * 127.5)
 
             i += 1;
 
-        self.sample_generation(32, self.net_g)
-
-    def show_history(self):
-        plt.figure(1, figsize=(16, 8))
-        plt.plot(self.d_loss_real_history)
-        plt.ylabel('d_loss_real')
-        plt.xlabel('epoch')
-        plt.legend(['train'], loc='upper left')
-
-        plt.savefig('./model3_output/image/d_loss_real_history.png')
-
-        plt.figure(2, figsize=(16, 8))
-        plt.plot(self.d_loss_fake_history)
-        plt.ylabel('d_loss_fake')
-        plt.xlabel('epoch')
-        plt.legend(['train'], loc='upper left')
-
-        plt.savefig('./model3_output/image/d_loss_fake_history.png')
-
-        # plt.show()
-
-        plt.figure(3, figsize=(16, 8))
-        plt.plot(self.g_loss_history)
-        plt.ylabel('g_loss')
-        plt.xlabel('epoch')
-        plt.legend(['train'], loc='upper left')
-
-        plt.savefig('./model3_output/image/g_loss_history.png')
-
-        # plt.show()\
-
-        plt.show()
-
+        #self.sample_generation()
 
 if __name__ == '__main__':
     myo_gan = MYO_GAN()
+    myo_gan.build_model()
     myo_gan.train()
+    myo_gan.show_history()
+    myo_gan.save_model()
 
     print("Finish")

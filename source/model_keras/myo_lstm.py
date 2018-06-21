@@ -22,6 +22,7 @@ from keras.datasets import mnist
 from urllib.request import urlretrieve
 from keras.utils import np_utils
 from keras.optimizers import RMSprop, SGD, Adam
+from keras.models import model_from_json
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
@@ -56,20 +57,12 @@ class MYO_LSTM():
 
         self.lstm_input = Input(shape=self.lstm_size,)
 
+
+    def build_model(self):
         self.lstm_model = self.lstm()
-        #self.image_to_condition_model = self.image_to_condition()
-
         self.lstm_model.summary()
-        #self.image_to_condition_model.summary()
-
-        #elf.condition = self.image_to_condition_model(self.image_input)
-
-        #self.condition_model = Model(inputs=self.lstm_input, outputs=self.condition, name='condition_model')
-        #self.condition_model.summary()
 
         self.lstm_model.compile(loss='mean_squared_error', optimizer=self.adam)
-        #self.condition_model.compile(loss='mean_squared_error', optimizer=self.adam)
-
 
     def resize_image(self, input_image):
         images = []
@@ -112,7 +105,22 @@ class MYO_LSTM():
 
             i += 1
 
+    def load_model(self):
+
+        json_file = open('./model_load/myo_lstm_output/lstm_model_4000.json', 'r')
+        loaded_model_json = json_file.read()
+        json_file.close()
+        load_lstm_model = model_from_json(loaded_model_json)
+        # load weights into new model
+        load_lstm_model.load_weights("./model_load/myo_lstm_output/lstm_model_4000.h5")
+
+        self.lstm_model = load_lstm_model
+        self.lstm_model.summary()
+
+        print('load model')
+
     def show_history(self):
+
         plt.figure(1, figsize=(16, 8))
         plt.plot(self.loss_history)
         plt.ylabel('loss')
@@ -149,9 +157,36 @@ class MYO_LSTM():
 
         return Model(inputs=self.image_input, outputs=_)
 
+    def model_predict(self):
+
+        i = 0
+
+        while i <= self.epoch:
+            images = self.loader.get_images(self.batch_size)
+            emg = self.loader.get_emg_datas(self.batch_size)
+
+            condition = self.lstm_model.predict_on_batch(emg)
+            temp = np.reshape(condition[0], (8, 8))
+            img = cv2.resize(temp, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+            img = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+            img = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+            img = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+
+            cv2.imwrite('./myo_lstm_output/' + 'predict image' + str(i) + '.png', img * 127.5)
+
+            print('Predict lstm model')
+
+            i += 1
+
 if __name__ == '__main__':
 
     myo_lstm = MYO_LSTM()
+    myo_lstm.load_model()
+    myo_lstm.model_predict()
+
+    '''
+    myo_lstm.build_model()
     myo_lstm.train()
     myo_lstm.show_history()
     myo_lstm.save_model(myo_lstm.batch_size)
+    '''
