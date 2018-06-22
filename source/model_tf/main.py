@@ -16,15 +16,15 @@ from model import Model
 
 print(tf.__version__)
 
-mode = 'rectest'
+mode = 'train'
 is_real_image = False
 
 loader = DataLoader_Continous(data_path='./dataset_0516/', emg_length=200, is_real_image=is_real_image)
 
-batch_size = 64
+batch_size = 4
 label_num = 9
 
-model = Model(mode=mode, batch_size=batch_size, labels=label_num, learning_rate=0.001, is_real_image=is_real_image)
+model = Model(mode=mode, batch_size=batch_size, labels=label_num, learning_rate=0.0002, is_real_image=is_real_image)
 model.build()
 
 sess = tf.Session()
@@ -117,20 +117,25 @@ elif mode == 'train':
 
     for i in range(10000):
         print('Iteration ', i)
-        emgs = loader.get_emg_datas(batch_size)
-        images, labels = loader.get_images(batch_size)
+        # emgs = loader.get_emg_datas(batch_size)
+        # images, labels = loader.get_images(batch_size)
+        images = loader.get_images(batch_size)
 
-        images = images / 127.5
+        # images = images / 127.5
 
-        for k in range(len(emgs)):
-            emgs[k] = normalize(emgs[k])
+        # for k in range(len(emgs)):
+        #     emgs[k] = normalize(emgs[k])
 
-        z = np.random.rand(batch_size, 1000)
+        # print(np.random.normal(0, 0.1, 1000).shape)
+        z = np.array([np.random.normal(0, 0.1, 1000) for i in range(batch_size)])
 
-        _, _, ld, lg = sess.run([model.d_optimizer, model.g_optimizer, model.d_loss, model.g_loss], feed_dict={model.real_image:images, model.emg_data:emgs, model.z:z})
-        print(ld, lg)
+        # _, _, ld, lg = sess.run([model.d_optimizer, model.g_optimizer, model.d_loss, model.g_loss], feed_dict={model.real_image:images, model.emg_data:emgs, model.z:z})
+        _ = sess.run(model.g_optimizer, feed_dict={model.real_image: images, model.z: z})
+        _, _, ld, lg, lf = sess.run([model.d_optimizer, model.g_optimizer, model.d_loss, model.g_loss, model.feature_matching_loss], feed_dict={model.real_image: images, model.z: z})
 
-        test = sess.run(model.fake_image, feed_dict={model.emg_data:emgs, model.z:z})
+        print(ld, lg, lf)
+
+        test = sess.run(model.fake_image, feed_dict={model.z:z})
         print(test.shape)
         cv2.imwrite('./samples/' + str(i) + '.png', test[0]*127.5)
 
