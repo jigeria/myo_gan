@@ -450,10 +450,11 @@ for i in range(20):
 #     images = loader.get_images(7)
 #     print(i, images.shape)
 
+'''
 loader = DataLoader_Continous(data_path='./dataset_2018_05_16/', is_real_image=False, data_type=0)
 emg = loader.get_emg_datas(10)
 
 print(emg)
 print(emg.shape)
-
+'''
 

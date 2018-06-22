@@ -1,6 +1,6 @@
 '''
         Author          : MagmaTart
-        Last Modified   : 05/06/2018
+        Last Modified   : 06/22/2018
 '''
 
 import tensorflow as tf
@@ -99,56 +99,59 @@ class Model:
                 with slim.arg_scope([slim.conv2d_transpose], kernel_size=3, stride=2,
                                     weights_initializer=tflayers.xavier_initializer()):
                     with slim.arg_scope([slim.batch_norm], activation_fn=tf.nn.relu, is_training=(self.mode=='train')):
-                        net = slim.conv2d_transpose(net, num_outputs=128)
+                        net = slim.conv2d_transpose(net, num_outputs=512)
                         net = slim.batch_norm(net)
                         print(net)
                         net = slim.conv2d_transpose(net, num_outputs=256)       # output : 32 x 32
                         net = slim.batch_norm(net)
                         print(net)
-                        net = slim.conv2d_transpose(net, num_outputs=512)       # output : 64 x 64
+                        net = slim.conv2d_transpose(net, num_outputs=128)       # output : 64 x 64
                         net = slim.batch_norm(net)
                         print(net)
-                        net = slim.conv2d_transpose(net, num_outputs=256)       # output : 128 x 128
+                        net = slim.conv2d_transpose(net, num_outputs=1)       # output : 128 x 128
                         net = slim.batch_norm(net)
                         print(net)
 
-                net = slim.conv2d_transpose(net, num_outputs=1, kernel_size=1, stride=1, padding='SAME',
-                                            activation_fn=tf.nn.relu,
-                                            weights_initializer=tflayers.xavier_initializer_conv2d())
+                # net = slim.conv2d_transpose(net, num_outputs=1, kernel_size=1, stride=1, padding='SAME',
+                #                             activation_fn=tf.nn.relu,
+                #                             weights_initializer=tflayers.xavier_initializer_conv2d())
 
             else:
                 # 2x Upsampling -> Conv2D
                 # Xavier -> Truncated normal
                 # 16 x 16
+                print('TEST : FALSE')
                 with slim.arg_scope([slim.conv2d_transpose], kernel_size=3, stride=1, padding='SAME',
-                                    weights_initializer=tflayers.xavier_initializer_conv2d()):
-                    with slim.arg_scope([slim.batch_norm], activation_fn=tf.nn.relu, is_training=(self.mode=='train')):
-                        net = tf.image.resize_images(net, [16, 16])
-                        net = slim.conv2d_transpose(net, num_outputs=128)
-                        net = slim.batch_norm(net)
-                        print(net)
+                                    normalizer_fn=tflayers.batch_norm,
+                                    weights_initializer=tf.random_normal_initializer(stddev=0.02)):
+                    # with slim.arg_scope([slim.batch_norm], is_training=(self.mode=='train')):
+                    net = tf.image.resize_images(net, [16, 16])
+                    net = slim.conv2d_transpose(net, num_outputs=512)
+                    # net = slim.batch_norm(net)
+                    print(net)
 
-                        # 32 x 32
-                        net = tf.image.resize_images(net, [32, 32])
-                        net = slim.conv2d_transpose(net, num_outputs=256)
-                        net = slim.batch_norm(net)
-                        print(net)
+                    # 32 x 32
+                    net = tf.image.resize_images(net, [32, 32])
+                    net = slim.conv2d_transpose(net, num_outputs=256)
+                    # net = slim.batch_norm(net)
+                    print(net)
 
-                        # 64 x 64
-                        net = tf.image.resize_images(net, [64, 64])
-                        net = slim.conv2d_transpose(net, num_outputs=512)
-                        net = slim.batch_norm(net)
-                        print(net)
+                    # 64 x 64
+                    net = tf.image.resize_images(net, [64, 64])
+                    net = slim.conv2d_transpose(net, num_outputs=128)
+                    # net = slim.batch_norm(net)
+                    print(net)
 
-                        # 128 x 128
-                        net = tf.image.resize_images(net, [128, 128])
-                        net = slim.conv2d_transpose(net, num_outputs=256)
-                        net = slim.batch_norm(net)
-                        print(net)
+                    # 128 x 128
+                    net = tf.image.resize_images(net, [128, 128])
+                    net = slim.conv2d_transpose(net, num_outputs=1)
+                    # net = slim.batch_norm(net)
+                    print(net)
 
-                net = slim.conv2d_transpose(net, num_outputs=1, kernel_size=1, stride=1, padding='SAME',
-                                            activation_fn=tf.nn.relu,
-                                            weights_initializer=tflayers.xavier_initializer_conv2d())
+                # net = slim.conv2d_transpose(net, num_outputs=1, kernel_size=1, stride=1, padding='SAME',
+                #                             activation_fn=tf.nn.relu,
+                #                             normalizer_fn=tflayers.batch_norm,
+                #                             weights_initializer=tflayers.xavier_initializer_conv2d())
 
             print(net)
 
@@ -235,38 +238,41 @@ class Model:
 
     def discriminator_edge(self, input, reuse=False):
         net = input
+        ind_feature = net
         print(net)
 
         with tf.variable_scope("discriminator_edge", reuse=reuse):
-            with slim.arg_scope([slim.conv2d], kernel_size=3, stride=2,
-                                weights_initializer=tflayers.xavier_initializer()):
-                with slim.arg_scope([slim.batch_norm], activation_fn=leaky_relu, is_training=(self.mode=='train')):
-                    net = slim.conv2d(net, num_outputs=256)     # 64 x 64
-                    net = slim.batch_norm(net)
-                    print(net)
-                    net = slim.conv2d(net, num_outputs=512)     # 32 x 32
-                    net = slim.batch_norm(net)
-                    print(net)
-                    net = slim.conv2d(net, num_outputs=256)     # 16 x 16
-                    net = slim.batch_norm(net)
-                    print(net)
-                    net = slim.conv2d(net, num_outputs=128)     # 8 x 8
-                    net = slim.batch_norm(net)
-                    print(net)
-                    net = slim.conv2d(net, num_outputs=64)     # 4 x 4
-                    net = slim.batch_norm(net)
-                    print(net)
+            with slim.arg_scope([slim.conv2d], kernel_size=3, stride=2, activation_fn=tf.nn.relu,
+                                normalizer_fn=tflayers.batch_norm,
+                                weights_initializer=tf.random_normal_initializer(stddev=0.02)):
+                # with slim.arg_scope([slim.batch_norm], activation_fn=leaky_relu, is_training=(self.mode=='train')):
+                net = slim.conv2d(net, num_outputs=1024)     # 64 x 64
+                # net = slim.batch_norm(net)
+                print(net)
+                net = slim.conv2d(net, num_outputs=512)     # 32 x 32
+                # net = slim.batch_norm(net)
+                print(net)
+                net = slim.conv2d(net, num_outputs=256)     # 16 x 16
+                ind_feature = net
+                # net = slim.batch_norm(net)
+                print(net)
+                net = slim.conv2d(net, num_outputs=128)     # 8 x 8
+                # net = slim.batch_norm(net)
+                print(net)
+                net = slim.conv2d(net, num_outputs=1)     # 4 x 4
+                # net = slim.batch_norm(net)
+                print(net)
 
             # LeakyReLU -> Sigmoid
-            net = slim.conv2d(net, num_outputs=1, kernel_size=4, stride=1, activation_fn=leaky_relu,
-                              weights_initializer=tflayers.xavier_initializer())
+            # net = slim.conv2d(net, num_outputs=1, kernel_size=4, stride=1, activation_fn=leaky_relu,
+            #                   weights_initializer=tflayers.xavier_initializer())
             print(net)
             net = slim.flatten(net)
-            net = slim.fully_connected(net, num_outputs=10, activation_fn=tf.nn.relu,
-                                       weights_initializer=tflayers.xavier_initializer())
+            net = slim.fully_connected(net, num_outputs=1, activation_fn=tf.nn.sigmoid,
+                                       weights_initializer=tf.random_normal_initializer(stddev=0.02))
             print(net)
 
-        return net
+        return net, ind_feature
 
     def discriminator_real(self, input, reuse=False):
         net = input
@@ -458,14 +464,20 @@ class Model:
                 self.real_logits = self.discriminator_real(self.real_image, reuse=True)
             else:
                 self.fake_image = self.generator_edge(self.emg_data, self.z, reuse=False)
-                self.fake_logits = self.discriminator_edge(self.fake_image)
-                self.real_logits = self.discriminator_edge(self.real_image, reuse=True)
+                self.fake_logits, self.fake_feature = self.discriminator_edge(self.fake_image)
+                self.real_logits, self.real_feature = self.discriminator_edge(self.real_image, reuse=True)
 
-            self.d_loss_fake = tf.losses.sigmoid_cross_entropy(tf.zeros_like(self.fake_logits), self.fake_logits)
-            self.d_loss_real = tf.losses.sigmoid_cross_entropy(tf.ones_like(self.real_logits), self.real_logits)
+            # self.d_loss_fake = tf.losses.sigmoid_cross_entropy(tf.zeros_like(self.fake_logits), self.fake_logits)
+            # self.d_loss_real = tf.losses.sigmoid_cross_entropy(tf.ones_like(self.real_logits), self.real_logits)
+            self.d_loss_fake = tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.zeros_like(self.fake_logits), logits=self.fake_logits)
+            self.d_loss_real = tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(self.real_logits), logits=self.real_logits)
             self.d_loss = tf.reduce_mean(self.d_loss_fake + self.d_loss_real)
 
-            self.g_loss = tf.reduce_mean(tf.losses.sigmoid_cross_entropy(tf.ones_like(self.fake_logits), self.fake_logits))
+            # self.g_loss = tf.reduce_mean(tf.losses.sigmoid_cross_entropy(tf.ones_like(self.fake_logits), self.fake_logits))
+            self.feature_matching_loss = tf.reduce_mean(tf.square(self.fake_image - self.real_image))
+            self.g_loss = tf.reduce_mean(
+                tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(self.fake_logits), logits=self.fake_logits))\
+                + self.feature_matching_loss
 
             self.d_optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.d_loss)
             self.g_optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.g_loss)
