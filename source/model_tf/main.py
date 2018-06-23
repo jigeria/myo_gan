@@ -115,6 +115,8 @@ elif mode == 'train':
     # restorer = tf.train.Saver()
     # restorer.restore(sess, './pretrain/iter6000.ckpt')
 
+    saver = tf.train.Saver()
+
     for i in range(10000):
         print('Iteration ', i)
         # emgs = loader.get_emg_datas(batch_size)
@@ -130,7 +132,10 @@ elif mode == 'train':
         z = np.array([np.random.normal(0, 0.1, 1000) for i in range(batch_size)])
 
         # _, _, ld, lg = sess.run([model.d_optimizer, model.g_optimizer, model.d_loss, model.g_loss], feed_dict={model.real_image:images, model.emg_data:emgs, model.z:z})
+        _ = sess.run(model.d_optimizer, feed_dict={model.real_image: images, model.z: z})
         _ = sess.run(model.g_optimizer, feed_dict={model.real_image: images, model.z: z})
+        _ = sess.run(model.g_optimizer, feed_dict={model.real_image: images, model.z: z})
+        _ = sess.run(model.f_optimizer, feed_dict={model.real_image: images, model.z: z})
         _, _, ld, lg, lf = sess.run([model.d_optimizer, model.g_optimizer, model.d_loss, model.g_loss, model.feature_matching_loss], feed_dict={model.real_image: images, model.z: z})
 
         print(ld, lg, lf)
@@ -138,6 +143,10 @@ elif mode == 'train':
         test = sess.run(model.fake_image, feed_dict={model.z:z})
         print(test.shape)
         cv2.imwrite('./samples/' + str(i) + '.png', test[0]*127.5)
+
+        if i % 500 == 0:
+            saver.save(sess, './model-save/train' + str(i) + 'ckpt')
+            print('Model saved :', i)
 
 elif mode == 'myo-lstm-test':
     # emgs = loader.get_emg_datas(batch_size)
