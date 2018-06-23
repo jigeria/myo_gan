@@ -87,6 +87,7 @@ class Model:
 
         # Generator
         with tf.variable_scope('generator_edge', reuse=reuse):
+            # with tf.device('/gpu:0'):
             net = slim.fully_connected(input, 64*8*8, activation_fn=tf.nn.relu,
                                           weights_initializer=tflayers.xavier_initializer(),
                                           reuse=reuse)
@@ -242,6 +243,7 @@ class Model:
         print(net)
 
         with tf.variable_scope("discriminator_edge", reuse=reuse):
+            # with tf.device('/gpu:0'):
             with slim.arg_scope([slim.conv2d], kernel_size=3, stride=2, activation_fn=tf.nn.relu,
                                 normalizer_fn=tflayers.batch_norm,
                                 weights_initializer=tf.random_normal_initializer(stddev=0.02)):
@@ -476,11 +478,11 @@ class Model:
             # self.g_loss = tf.reduce_mean(tf.losses.sigmoid_cross_entropy(tf.ones_like(self.fake_logits), self.fake_logits))
             self.feature_matching_loss = tf.reduce_mean(tf.square(self.fake_image - self.real_image))
             self.g_loss = tf.reduce_mean(
-                tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(self.fake_logits), logits=self.fake_logits))\
-                + self.feature_matching_loss
+                tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(self.fake_logits), logits=self.fake_logits))
 
             self.d_optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.d_loss)
             self.g_optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.g_loss)
+            self.f_optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.feature_matching_loss)
 
         elif self.mode == 'rectest':
             emg_flatten = slim.flatten(self.emg_data)
