@@ -87,74 +87,74 @@ class Model:
 
         # Generator
         with tf.variable_scope('generator_edge', reuse=reuse):
-            # with tf.device('/gpu:0'):
-            net = slim.fully_connected(input, 64*8*8, activation_fn=tf.nn.relu,
-                                          weights_initializer=tflayers.xavier_initializer(),
-                                          reuse=reuse)
-            print(net)
-            net = tf.reshape(net, [-1, 8, 8, 64])
-            net = slim.conv2d(net, num_outputs=128, kernel_size=1, stride=1)
-            print(net)
+            with tf.device('/gpu:0'):
+                net = slim.fully_connected(input, 64*8*8, activation_fn=tf.nn.relu,
+                                              weights_initializer=tflayers.xavier_initializer(),
+                                              reuse=reuse)
+                print(net)
+                net = tf.reshape(net, [-1, 8, 8, 64])
+                net = slim.conv2d(net, num_outputs=128, kernel_size=1, stride=1)
+                print(net)
 
-            if not test:
-                with slim.arg_scope([slim.conv2d_transpose], kernel_size=3, stride=2,
-                                    weights_initializer=tflayers.xavier_initializer()):
-                    with slim.arg_scope([slim.batch_norm], activation_fn=tf.nn.relu, is_training=(self.mode=='train')):
+                if not test:
+                    with slim.arg_scope([slim.conv2d_transpose], kernel_size=3, stride=2,
+                                        weights_initializer=tflayers.xavier_initializer()):
+                        with slim.arg_scope([slim.batch_norm], activation_fn=tf.nn.relu, is_training=(self.mode=='train')):
+                            net = slim.conv2d_transpose(net, num_outputs=512)
+                            net = slim.batch_norm(net)
+                            print(net)
+                            net = slim.conv2d_transpose(net, num_outputs=256)       # output : 32 x 32
+                            net = slim.batch_norm(net)
+                            print(net)
+                            net = slim.conv2d_transpose(net, num_outputs=128)       # output : 64 x 64
+                            net = slim.batch_norm(net)
+                            print(net)
+                            net = slim.conv2d_transpose(net, num_outputs=1)       # output : 128 x 128
+                            net = slim.batch_norm(net)
+                            print(net)
+
+                    # net = slim.conv2d_transpose(net, num_outputs=1, kernel_size=1, stride=1, padding='SAME',
+                    #                             activation_fn=tf.nn.relu,
+                    #                             weights_initializer=tflayers.xavier_initializer_conv2d())
+
+                else:
+                    # 2x Upsampling -> Conv2D
+                    # Xavier -> Truncated normal
+                    # 16 x 16
+                    print('TEST : FALSE')
+                    with slim.arg_scope([slim.conv2d_transpose], kernel_size=3, stride=1, padding='SAME',
+                                        normalizer_fn=tflayers.batch_norm,
+                                        weights_initializer=tf.random_normal_initializer(stddev=0.02)):
+                        # with slim.arg_scope([slim.batch_norm], is_training=(self.mode=='train')):
+                        net = tf.image.resize_images(net, [16, 16])
                         net = slim.conv2d_transpose(net, num_outputs=512)
-                        net = slim.batch_norm(net)
-                        print(net)
-                        net = slim.conv2d_transpose(net, num_outputs=256)       # output : 32 x 32
-                        net = slim.batch_norm(net)
-                        print(net)
-                        net = slim.conv2d_transpose(net, num_outputs=128)       # output : 64 x 64
-                        net = slim.batch_norm(net)
-                        print(net)
-                        net = slim.conv2d_transpose(net, num_outputs=1)       # output : 128 x 128
-                        net = slim.batch_norm(net)
+                        # net = slim.batch_norm(net)
                         print(net)
 
-                # net = slim.conv2d_transpose(net, num_outputs=1, kernel_size=1, stride=1, padding='SAME',
-                #                             activation_fn=tf.nn.relu,
-                #                             weights_initializer=tflayers.xavier_initializer_conv2d())
+                        # 32 x 32
+                        net = tf.image.resize_images(net, [32, 32])
+                        net = slim.conv2d_transpose(net, num_outputs=256)
+                        # net = slim.batch_norm(net)
+                        print(net)
 
-            else:
-                # 2x Upsampling -> Conv2D
-                # Xavier -> Truncated normal
-                # 16 x 16
-                print('TEST : FALSE')
-                with slim.arg_scope([slim.conv2d_transpose], kernel_size=3, stride=1, padding='SAME',
-                                    normalizer_fn=tflayers.batch_norm,
-                                    weights_initializer=tf.random_normal_initializer(stddev=0.02)):
-                    # with slim.arg_scope([slim.batch_norm], is_training=(self.mode=='train')):
-                    net = tf.image.resize_images(net, [16, 16])
-                    net = slim.conv2d_transpose(net, num_outputs=512)
-                    # net = slim.batch_norm(net)
-                    print(net)
+                        # 64 x 64
+                        net = tf.image.resize_images(net, [64, 64])
+                        net = slim.conv2d_transpose(net, num_outputs=128)
+                        # net = slim.batch_norm(net)
+                        print(net)
 
-                    # 32 x 32
-                    net = tf.image.resize_images(net, [32, 32])
-                    net = slim.conv2d_transpose(net, num_outputs=256)
-                    # net = slim.batch_norm(net)
-                    print(net)
+                        # 128 x 128
+                        net = tf.image.resize_images(net, [128, 128])
+                        net = slim.conv2d_transpose(net, num_outputs=1)
+                        # net = slim.batch_norm(net)
+                        print(net)
 
-                    # 64 x 64
-                    net = tf.image.resize_images(net, [64, 64])
-                    net = slim.conv2d_transpose(net, num_outputs=128)
-                    # net = slim.batch_norm(net)
-                    print(net)
+                    # net = slim.conv2d_transpose(net, num_outputs=1, kernel_size=1, stride=1, padding='SAME',
+                    #                             activation_fn=tf.nn.relu,
+                    #                             normalizer_fn=tflayers.batch_norm,
+                    #                             weights_initializer=tflayers.xavier_initializer_conv2d())
 
-                    # 128 x 128
-                    net = tf.image.resize_images(net, [128, 128])
-                    net = slim.conv2d_transpose(net, num_outputs=1)
-                    # net = slim.batch_norm(net)
-                    print(net)
-
-                # net = slim.conv2d_transpose(net, num_outputs=1, kernel_size=1, stride=1, padding='SAME',
-                #                             activation_fn=tf.nn.relu,
-                #                             normalizer_fn=tflayers.batch_norm,
-                #                             weights_initializer=tflayers.xavier_initializer_conv2d())
-
-            print(net)
+                print(net)
 
             return net
 
@@ -243,36 +243,36 @@ class Model:
         print(net)
 
         with tf.variable_scope("discriminator_edge", reuse=reuse):
-            # with tf.device('/gpu:0'):
-            with slim.arg_scope([slim.conv2d], kernel_size=3, stride=2, activation_fn=tf.nn.relu,
-                                normalizer_fn=tflayers.batch_norm,
-                                weights_initializer=tf.random_normal_initializer(stddev=0.02)):
-                # with slim.arg_scope([slim.batch_norm], activation_fn=leaky_relu, is_training=(self.mode=='train')):
-                net = slim.conv2d(net, num_outputs=1024)     # 64 x 64
-                # net = slim.batch_norm(net)
-                print(net)
-                net = slim.conv2d(net, num_outputs=512)     # 32 x 32
-                # net = slim.batch_norm(net)
-                print(net)
-                net = slim.conv2d(net, num_outputs=256)     # 16 x 16
-                ind_feature = net
-                # net = slim.batch_norm(net)
-                print(net)
-                net = slim.conv2d(net, num_outputs=128)     # 8 x 8
-                # net = slim.batch_norm(net)
-                print(net)
-                net = slim.conv2d(net, num_outputs=1)     # 4 x 4
-                # net = slim.batch_norm(net)
-                print(net)
+            with tf.device('/gpu:0'):
+                with slim.arg_scope([slim.conv2d], kernel_size=3, stride=2, activation_fn=tf.nn.relu,
+                                    normalizer_fn=tflayers.batch_norm,
+                                    weights_initializer=tf.random_normal_initializer(stddev=0.02)):
+                    # with slim.arg_scope([slim.batch_norm], activation_fn=leaky_relu, is_training=(self.mode=='train')):
+                    net = slim.conv2d(net, num_outputs=1024)     # 64 x 64
+                    # net = slim.batch_norm(net)
+                    print(net)
+                    net = slim.conv2d(net, num_outputs=512)     # 32 x 32
+                    # net = slim.batch_norm(net)
+                    print(net)
+                    net = slim.conv2d(net, num_outputs=256)     # 16 x 16
+                    ind_feature = net
+                    # net = slim.batch_norm(net)
+                    print(net)
+                    net = slim.conv2d(net, num_outputs=128)     # 8 x 8
+                    # net = slim.batch_norm(net)
+                    print(net)
+                    net = slim.conv2d(net, num_outputs=1)     # 4 x 4
+                    # net = slim.batch_norm(net)
+                    print(net)
 
-            # LeakyReLU -> Sigmoid
-            # net = slim.conv2d(net, num_outputs=1, kernel_size=4, stride=1, activation_fn=leaky_relu,
-            #                   weights_initializer=tflayers.xavier_initializer())
-            print(net)
-            net = slim.flatten(net)
-            net = slim.fully_connected(net, num_outputs=1, activation_fn=tf.nn.sigmoid,
-                                       weights_initializer=tf.random_normal_initializer(stddev=0.02))
-            print(net)
+                # LeakyReLU -> Sigmoid
+                # net = slim.conv2d(net, num_outputs=1, kernel_size=4, stride=1, activation_fn=leaky_relu,
+                #                   weights_initializer=tflayers.xavier_initializer())
+                print(net)
+                net = slim.flatten(net)
+                net = slim.fully_connected(net, num_outputs=1, activation_fn=tf.nn.sigmoid,
+                                           weights_initializer=tf.random_normal_initializer(stddev=0.02))
+                print(net)
 
         return net, ind_feature
 
@@ -423,7 +423,7 @@ class Model:
     def make_condition(self, image):
         net = image
         with tf.variable_scope('make_condition'):
-            # with tf.device('/gpu:0'):
+            #with tf.device('/gpu:0'):
             # make 64 x 64
             net = slim.conv2d(net, num_outputs=512, kernel_size=3, stride=2,
                               activation_fn=tf.nn.relu, normalizer_fn=tflayers.batch_norm,

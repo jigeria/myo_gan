@@ -1,7 +1,13 @@
 '''
         Author          : MagmaTart
         Last Modified   : 05/06/2018
+
+        #%run /root/jupyter/inspace/sang-min/myo_proejct/model_tf/model.py import Model
+from model import Model
+%run /root/jupyter/inspace/sang-min/myo_proejct/load_data.py import DataLoader_Continous
+
 '''
+
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
@@ -9,19 +15,23 @@ import numpy as np
 from sklearn.preprocessing import normalize
 import cv2
 import matplotlib.pyplot as plt
-import pywt
+#import pywt
 
-from load_data import DataLoader_Continous
-from model import Model
+#from load_data import DataLoader_Continous
+#from model import Model
+
+%run /root/jupyter/inspace/sang-min/myo_proejct/model_tf/model.py import Model
+%run /root/jupyter/inspace/sang-min/myo_proejct/model_tf/load_data.py import DataLoader_Continous
 
 print(tf.__version__)
 
 mode = 'train'
 is_real_image = False
 
-loader = DataLoader_Continous(data_path='./dataset_0516/', emg_length=200, is_real_image=is_real_image)
 
-batch_size = 4
+loader = DataLoader_Continous(data_path='../dataset_0620/', emg_length=200, is_real_image=is_real_image)
+
+batch_size = 32
 label_num = 9
 
 model = Model(mode=mode, batch_size=batch_size, labels=label_num, learning_rate=0.0002, is_real_image=is_real_image)
@@ -115,9 +125,7 @@ elif mode == 'train':
     # restorer = tf.train.Saver()
     # restorer.restore(sess, './pretrain/iter6000.ckpt')
 
-    saver = tf.train.Saver()
-
-    for i in range(10000):
+    for i in range(50000):
         print('Iteration ', i)
         # emgs = loader.get_emg_datas(batch_size)
         # images, labels = loader.get_images(batch_size)
@@ -132,19 +140,22 @@ elif mode == 'train':
         z = np.array([np.random.normal(0, 0.1, 1000) for i in range(batch_size)])
 
         # _, _, ld, lg = sess.run([model.d_optimizer, model.g_optimizer, model.d_loss, model.g_loss], feed_dict={model.real_image:images, model.emg_data:emgs, model.z:z})
+        # _ = sess.run(model.g_optimizer, feed_dict={model.real_image: images, model.z: z})
         _ = sess.run(model.d_optimizer, feed_dict={model.real_image: images, model.z: z})
         _ = sess.run(model.g_optimizer, feed_dict={model.real_image: images, model.z: z})
         _ = sess.run(model.g_optimizer, feed_dict={model.real_image: images, model.z: z})
         _ = sess.run(model.f_optimizer, feed_dict={model.real_image: images, model.z: z})
         _, _, ld, lg, lf = sess.run([model.d_optimizer, model.g_optimizer, model.d_loss, model.g_loss, model.feature_matching_loss], feed_dict={model.real_image: images, model.z: z})
 
-        print(ld, lg, lf)
+        print('D :', ld, ', G :', lg, ', F :', lf)
 
-        test = sess.run(model.fake_image, feed_dict={model.z:z})
-        print(test.shape)
-        cv2.imwrite('./samples/' + str(i) + '.png', test[0]*127.5)
+        if i % 100 == 0:
+            test = sess.run(model.fake_image, feed_dict={model.z:z})
+            print(test.shape)
+            cv2.imwrite('./samples/' + str(i) + '.png', test[0]*127.5)
 
         if i % 500 == 0:
+            saver = tf.train.Saver()
             saver.save(sess, './model-save/train' + str(i) + 'ckpt')
             print('Model saved :', i)
 

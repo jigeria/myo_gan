@@ -330,8 +330,7 @@ class DataLoader_Continous:
             # self.image_dir_index = (self.image_dir_index % 5) + 1
             self.set_new_image_directory(self.image_dir_index)
 
-        # image = cv2.GaussianBlur(image, (7, 7), 0)
-
+        image = cv2.GaussianBlur(image, (7, 7), 0)
         image = np.reshape(image, (128, 128, 1))
                # print(image.shape)
         # cv2.imshow('Blurred', image)
